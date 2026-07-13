@@ -1,0 +1,32 @@
+# Core bot
+python-telegram-bot==22.6
+python-dotenv
+SQLAlchemy>=2.0
+PyYAML
+
+# App backend (FastAPI)
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+bcrypt
+python-multipart
+email-validator
+
+# AI provider (modular; Gemini is the first implementation)
+google-genai
+
+# PDF rendering + search highlighting
+PyMuPDF>=1.28
+Pillow
+
+# Semantic search (optional at runtime; keyword search works without it)
+sentence-transformers
+faiss-cpu
+numpy
+
+# Background jobs (reminders, daily word, weekly report)
+APScheduler
+
+# NOTE: OCR relies on the external Tesseract binary (not a pip package).
+#   winget install UB-Mannheim.TesseractOCR
+#   plus tessdata_best 'ara' in the tessdata/ dir (see README).

@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم إنجازي</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --card: #22263a;
+    --primary: #2E7D6B; --primary-l: #3da88f; --accent: #4fc3a1;
+    --text: #e8eaf0; --muted: #8890a8; --border: #2e3248;
+    --red: #e05252; --green: #4caf81; --yellow: #e0b44a;
+    --radius: 10px; --sidebar: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 14px; display: flex; min-height: 100vh; }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--sidebar); background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 20px 0; position: fixed; top: 0; right: 0; bottom: 0; z-index: 10;
+  }
+  #sidebar .logo { padding: 0 20px 24px; font-size: 18px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  #sidebar .logo span { font-size: 22px; }
+  .nav-item {
+    padding: 11px 20px; cursor: pointer; border-radius: 0; display: flex; align-items: center; gap: 10px;
+    color: var(--muted); transition: background .15s, color .15s; border-right: 3px solid transparent;
+  }
+  .nav-item:hover { background: var(--card); color: var(--text); }
+  .nav-item.active { background: rgba(46,125,107,.15); color: var(--accent); border-right-color: var(--accent); }
+  .nav-item .icon { font-size: 17px; width: 20px; text-align: center; }
+  #sidebar .version { margin-top: auto; padding: 16px 20px; color: var(--muted); font-size: 12px; }
+
+  /* ── MAIN ── */
+  #main { margin-right: var(--sidebar); flex: 1; padding: 28px 32px; }
+  .page { display: none; } .page.active { display: block; }
+  h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+  h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+  /* ── CARDS ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .stat-card .val { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-card .lbl { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  /* ── TABLE ── */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: right; padding: 10px 14px; color: var(--muted); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+
+  /* ── BADGE ── */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.green { background: rgba(76,175,129,.18); color: var(--green); }
+  .badge.red   { background: rgba(224,82,82,.18);  color: var(--red);   }
+  .badge.yellow{ background: rgba(224,180,74,.18); color: var(--yellow);}
+  .badge.muted { background: rgba(136,144,168,.15);color: var(--muted); }
+
+  /* ── FORMS ── */
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); padding: 8px 12px; font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary-l); }
+  textarea { resize: vertical; min-height: 80px; }
+  select option { background: var(--surface); }
+
+  /* ── BUTTONS ── */
+  .btn { padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-danger  { background: var(--red);     color: #fff; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; }
+
+  /* ── PROGRESS ── */
+  .progress-bar { background: var(--border); border-radius: 20px; height: 6px; overflow: hidden; }
+  .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 20px; transition: width .4s; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 22px; border-radius: 20px; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  }
+  #toast.show { opacity: 1; }
+  #toast.ok  { border-color: var(--green); color: var(--green); }
+  #toast.err { border-color: var(--red);   color: var(--red);   }
+
+  /* ── LOGIN ── */
+  #login-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+  }
+  #login-screen.hidden { display: none; }
+  .login-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 36px 40px; width: 340px; text-align: center; }
+  .login-box h1 { color: var(--accent); margin-bottom: 6px; font-size: 22px; }
+  .login-box p  { color: var(--muted); margin-bottom: 24px; font-size: 13px; }
+  .login-box input { width: 100%; margin-bottom: 12px; }
+  .login-box .btn { width: 100%; }
+  .login-err { color: var(--red); font-size: 12px; margin-top: 8px; display: none; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab { padding: 8px 16px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font-size: 13px; font-weight: 600; margin-bottom: -1px; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── FILE INPUT ── */
+  .file-input-wrap { position: relative; }
+  .file-input-wrap input[type=file] { opacity: 0; position: absolute; inset: 0; cursor: pointer; }
+  .file-btn { background: var(--surface); border: 1px dashed var(--border); border-radius: 7px; padding: 8px 14px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .file-btn.has-file { border-color: var(--primary); color: var(--text); }
+
+  /* misc */
+  .sep { height: 1px; background: var(--border); margin: 20px 0; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row .card { flex: 1; min-width: 260px; }
+  .empty { color: var(--muted); text-align: center; padding: 28px; font-size: 13px; }
+  .copy-btn { cursor: pointer; color: var(--muted); font-size: 12px; margin-right: 4px; }
+  .copy-btn:hover { color: var(--text); }
+  code { font-family: monospace; font-size: 12px; background: var(--surface); padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🎓 إنجازي</h1>
+    <p>لوحة تحكم المشرف</p>
+    <input type="password" id="key-input" placeholder="مفتاح المشرف (APP_ADMIN_KEY)" />
+    <button class="btn btn-primary" onclick="doLogin()">دخول</button>
+    <div class="login-err" id="login-err">مفتاح خاطئ أو الخادم غير متاح</div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo"><span>🎓</span> إنجازي</div>
+  <div class="nav-item active" onclick="nav('stats')"><span class="icon">📊</span> الإحصاءات</div>
+  <div class="nav-item" onclick="nav('users')"><span class="icon">👤</span> المستخدمون</div>
+  <div class="nav-item" onclick="nav('codes')"><span class="icon">🔑</span> رموز التفعيل</div>
+  <div class="nav-item" onclick="nav('books')"><span class="icon">📚</span> الكتب والمحتوى</div>
+  <div class="nav-item" onclick="nav('notifs')"><span class="icon">📢</span> الإشعارات</div>
+  <div class="version">Elite Admin v0.1</div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- STATS -->
+  <div class="page active" id="page-stats">
+    <h2>📊 نظرة عامة</h2>
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="val" id="s-users">—</div><div class="lbl">إجمالي المستخدمين</div></div>
+      <div class="stat-card"><div class="val" id="s-first">—</div><div class="lbl">مشتركو الفصل الأول</div></div>
+      <div class="stat-card"><div class="val" id="s-second">—</div><div class="lbl">مشتركو الفصل الثاني</div></div>
+      <div class="stat-card"><div class="val" id="s-codes">—</div><div class="lbl">رموز متاحة</div></div>
+      <div class="stat-card"><div class="val" id="s-books">—</div><div class="lbl">كتب مُفهرسة</div></div>
+    </div>
+    <div class="card">
+      <h3>المستخدمون الأخيرون</h3>
+      <div class="tbl-wrap"><table id="recent-tbl">
+        <thead><tr><th>#</th><th>البريد</th><th>الاسم</th><th>التسجيل</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div class="page" id="page-users">
+    <h2>👤 المستخدمون</h2>
+    <div class="card">
+      <div class="form-row">
+        <div class="field"><label>بحث بالبريد / الرقم</label>
+          <input id="user-search" placeholder="user@example.com أو ID" style="width:260px" onkeydown="if(event.key==='Enter')searchUser()" />
+        </div>
+        <button class="btn btn-primary" onclick="searchUser()">بحث</button>
+      </div>
+      <div id="user-result"></div>
+    </div>
+    <div class="card">
+      <h3>أحدث 50 مستخدمًا</h3>
+      <div class="tbl-wrap"><table id="users-tbl">
+        <thead><tr><th>ID</th><th>البريد</th><th>الاسم</th><th>التسجيل</th><th>الفصل 1</th><th>الفصل 2</th><th>إجراء</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- CODES -->
+  <div class="page" id="page-codes">
+    <h2>🔑 رموز التفعيل</h2>
+    <div class="row">
+      <div class="card">
+        <h3>إنشاء رموز</h3>
+        <div class="form-row">
+          <div class="field"><label>الفصل</label>
+            <select id="code-sem"><option value="first">الأول</option><option value="second">الثاني</option></select></div>
+          <div class="field"><label>عدد الرموز</label>
+            <input type="number" id="code-count" value="1" min="1" max="1000" style="width:90px" /></div>
+          <div class="field"><label>الحد الأقصى للاستخدام</label>
+            <input type="number" id="code-uses" value="1" min="1" style="width:90px" /></div>
+          <div class="field"><label>صلاحية (أيام، اتركه فارغًا = دائم)</label>
+            <input type="number" id="code-days" placeholder="∞" style="width:100px" /></div>
+          <button class="btn btn-primary" onclick="createCodes()">إنشاء</button>
+        </div>
+        <div id="new-codes-box" style="display:none">
+          <div class="sep"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0">الرموز الجديدة</h3>
+            <button class="btn btn-sm btn-primary" onclick="copyAllCodes()">نسخ الكل</button>
+          </div>
+          <div id="new-codes-list"></div>
+        </div>
+      </div>
+      <div class="card" style="min-width:200px;max-width:280px">
+        <h3>تصفية</h3>
+        <div class="field" style="margin-bottom:10px"><label>الفصل</label>
+          <select id="filter-sem" onchange="loadCodes()">
+            <option value="">الكل</option><option value="first">الأول</option><option value="second">الثاني</option>
+          </select></div>
+        <div class="field"><label>الحالة</label>
+          <select id="filter-avail" onchange="loadCodes()">
+            <option value="">الكل</option><option value="1">متاحة</option><option value="0">مستنفدة/معطّلة</option>
+          </select></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">قائمة الرموز</h3>
+        <button class="btn btn-sm btn-primary" onclick="loadCodes()">تحديث</button>
+      </div>
+      <div class="tbl-wrap"><table id="codes-tbl">
+        <thead><tr><th>الرمز</th><th>الفصل</th><th>الاستخدام</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- BOOKS -->
+  <div class="page" id="page-books">
+    <h2>📚 الكتب والمحتوى</h2>
+    <div class="tabs">
+      <div class="tab active" onclick="switchBookTab('first', this)">الفصل الأول</div>
+      <div class="tab" onclick="switchBookTab('second', this)">الفصل الثاني</div>
+    </div>
+    <div id="books-list"></div>
+  </div>
+
+  <!-- NOTIFS -->
+  <div class="page" id="page-notifs">
+    <h2>📢 الإشعارات</h2>
+    <div class="card">
+      <h3>إشعار جديد</h3>
+      <div class="form-row" style="flex-direction:column;align-items:stretch">
+        <div class="field"><label>العنوان</label>
+          <input id="notif-title" placeholder="مثال: تحديث مهم" /></div>
+        <div class="field" style="margin-top:10px"><label>النص</label>
+          <textarea id="notif-body" placeholder="محتوى الإشعار..."></textarea></div>
+        <button class="btn btn-primary" style="margin-top:10px;align-self:flex-start" onclick="postNotif()">إرسال للجميع</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+let adminKey = sessionStorage.getItem('adminKey') || '';
+let currentBookSem = 'first';
+let selectedFiles = {}; // subjectId -> File
+
+const API = ''; // same origin
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+async function api(method, path, body, isForm) {
+  const opts = { method, headers: { 'X-Admin-Key': adminKey } };
+  if (body && !isForm) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (isForm) opts.body = body;
+  const r = await fetch(API + path, opts);
+  if (r.status === 403) { logout(); throw new Error('403'); }
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r.text();
+}
+
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3200);
+}
+
+function fmt(dt) {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleDateString('ar-EG', { year:'numeric', month:'short', day:'numeric' });
+}
+
+function badge(text, cls) { return `<span class="badge ${cls}">${text}</span>`; }
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => toast('تم النسخ ✓'));
+}
+
+// ── LOGIN ────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const k = document.getElementById('key-input').value.trim();
+  if (!k) return;
+  adminKey = k;
+  try {
+    await api('GET', '/admin/stats');
+    sessionStorage.setItem('adminKey', k);
+    document.getElementById('login-screen').classList.add('hidden');
+    loadAll();
+  } catch {
+    document.getElementById('login-err').style.display = 'block';
+    adminKey = '';
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('adminKey');
+  adminKey = '';
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+document.getElementById('key-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// ── NAV ──────────────────────────────────────────────────────────────────────
+function nav(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.includes(navLabel(id))) n.classList.add('active');
+  });
+  if (id === 'stats') loadStats();
+  if (id === 'users') loadUsers();
+  if (id === 'codes') loadCodes();
+  if (id === 'books') loadBooks(currentBookSem);
+}
+
+function navLabel(id) {
+  return { stats:'الإحصاءات', users:'المستخدمون', codes:'رموز التفعيل', books:'الكتب', notifs:'الإشعارات' }[id];
+}
+
+// ── STATS ────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const s = await api('GET', '/admin/stats');
+    document.getElementById('s-users').textContent  = s.total_users;
+    document.getElementById('s-first').textContent  = s.active_first;
+    document.getElementById('s-second').textContent = s.active_second;
+    document.getElementById('s-codes').textContent  = s.codes_available;
+    document.getElementById('s-books').textContent  = s.books_ready;
+
+    const users = await api('GET', '/admin/users');
+    const tbody = document.querySelector('#recent-tbl tbody');
+    tbody.innerHTML = users.map((u, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${u.email}</td>
+        <td>${u.name || '—'}</td>
+        <td>${fmt(u.created_at)}</td>
+      </tr>`).join('');
+  } catch(e) { toast('فشل تحميل الإحصاءات: ' + e.message, 'err'); }
+}
+
+// ── USERS ────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const users = await api('GET', '/admin/users');
+    renderUsersTable(users, 'users-tbl');
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+function renderUsersTable(users, tblId) {
+  const tbody = document.querySelector(`#${tblId} tbody`);
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td>${u.email}</td>
+      <td>${u.name || '—'}</td>
+      <td>${fmt(u.created_at)}</td>
+      <td>${u.has_first  ? badge('✓ نشط','green') : badge('لا','muted')}</td>
+      <td>${u.has_second ? badge('✓ نشط','green') : badge('لا','muted')}</td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="grantAccess(${u.id},'first')">تفعيل 1</button>
+        <button class="btn btn-sm btn-primary" style="margin-right:4px" onclick="grantAccess(${u.id},'second')">تفعيل 2</button>
+        <button class="btn btn-sm btn-danger"  style="margin-right:4px" onclick="revokeAccess(${u.id})">إلغاء</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="7" class="empty">لا يوجد مستخدمون</td></tr>';
+}
+
+async function searchUser() {
+  const q = document.getElementById('user-search').value.trim();
+  if (!q) return;
+  const div = document.getElementById('user-result');
+  div.innerHTML = '<p style="color:var(--muted);padding:8px 0">جارٍ البحث...</p>';
+  try {
+    const users = await api('GET', '/admin/users');
+    const found = users.filter(u => u.email.includes(q) || String(u.id) === q);
+    if (!found.length) { div.innerHTML = '<p style="color:var(--muted);padding:8px 0">لم يُعثر على نتائج</p>'; return; }
+    div.innerHTML = `<table style="width:100%;margin-top:10px">
+      <thead><tr><th>ID</th><th>البريد</th><th>الاسم</th><th>الفصل 1</th><th>الفصل 2</th><th>إجراء</th></tr></thead>
+      <tbody>${found.map(u => `
+        <tr>
+          <td>${u.id}</td><td>${u.email}</td><td>${u.name||'—'}</td>
+          <td>${u.has_first?badge('✓','green'):badge('لا','muted')}</td>
+          <td>${u.has_second?badge('✓','green'):badge('لا','muted')}</td>
+          <td>
+            <button class="btn btn-sm btn-primary" onclick="grantAccess(${u.id},'first')">تفعيل 1</button>
+            <button class="btn btn-sm btn-primary" style="margin-right:4px" onclick="grantAccess(${u.id},'second')">تفعيل 2</button>
+            <button class="btn btn-sm btn-danger"  style="margin-right:4px" onclick="revokeAccess(${u.id})">إلغاء</button>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) { div.innerHTML = ''; toast('فشل: ' + e.message, 'err'); }
+}
+
+async function grantAccess(userId, semester) {
+  try {
+    await api('POST', `/admin/users/${userId}/access`, { semester, days: null, revoke: false });
+    toast(`✓ تم تفعيل الفصل ${semester === 'first' ? 'الأول' : 'الثاني'}`);
+    loadUsers();
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+async function revokeAccess(userId) {
+  if (!confirm('هل تريد إلغاء كل اشتراكات هذا المستخدم؟')) return;
+  try {
+    await api('POST', `/admin/users/${userId}/access`, { semester: 'first',  revoke: true });
+    await api('POST', `/admin/users/${userId}/access`, { semester: 'second', revoke: true });
+    toast('تم الإلغاء');
+    loadUsers();
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── CODES ────────────────────────────────────────────────────────────────────
+async function createCodes() {
+  const sem   = document.getElementById('code-sem').value;
+  const count = parseInt(document.getElementById('code-count').value) || 1;
+  const uses  = parseInt(document.getElementById('code-uses').value)  || 1;
+  const days  = document.getElementById('code-days').value ? parseInt(document.getElementById('code-days').value) : null;
+  try {
+    const r = await api('POST', '/admin/codes', { semester: sem, count, max_uses: uses, valid_days: days });
+    const box  = document.getElementById('new-codes-box');
+    const list = document.getElementById('new-codes-list');
+    box.style.display = 'block';
+    list.innerHTML = r.codes.map(c => `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+        <code>${c}</code>
+        <span class="copy-btn" onclick="copyText('${c}')">📋 نسخ</span>
+      </div>`).join('');
+    toast(`✓ تم إنشاء ${r.codes.length} رمز`);
+    loadCodes();
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+function copyAllCodes() {
+  const codes = [...document.querySelectorAll('#new-codes-list code')].map(c => c.textContent);
+  copyText(codes.join('\n'));
+}
+
+async function loadCodes() {
+  const sem   = document.getElementById('filter-sem').value;
+  const avail = document.getElementById('filter-avail').value;
+  let url = '/admin/codes?';
+  if (sem)   url += 'semester=' + sem + '&';
+  if (avail !== '') url += 'available_only=' + (avail === '1') + '&';
+  try {
+    const codes = await api('GET', url);
+    const tbody = document.querySelector('#codes-tbl tbody');
+    tbody.innerHTML = codes.map(c => `
+      <tr>
+        <td><code>${c.code}</code> <span class="copy-btn" onclick="copyText('${c.code}')">📋</span></td>
+        <td>${c.semester === 'first' ? 'الأول' : 'الثاني'}</td>
+        <td>${c.used_count} / ${c.max_uses}</td>
+        <td>${c.available ? badge('متاح','green') : badge('مستنفد','red')}</td>
+        <td>${c.enabled ? `<button class="btn btn-sm btn-danger" onclick="disableCode('${c.code}')">تعطيل</button>` : badge('معطّل','muted')}</td>
+      </tr>`).join('') || '<tr><td colspan="5" class="empty">لا يوجد رموز</td></tr>';
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+async function disableCode(code) {
+  if (!confirm(`تعطيل الرمز ${code}؟`)) return;
+  try {
+    await api('POST', `/admin/codes/${code}/disable`);
+    toast('تم التعطيل');
+    loadCodes();
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── BOOKS ────────────────────────────────────────────────────────────────────
+function switchBookTab(sem, el) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentBookSem = sem;
+  loadBooks(sem);
+}
+
+async function loadBooks(sem) {
+  const container = document.getElementById('books-list');
+  container.innerHTML = '<p style="color:var(--muted);padding:12px">جارٍ التحميل...</p>';
+  try {
+    const subjects = await api('GET', `/admin/subjects/${sem}`);
+    container.innerHTML = subjects.map(s => renderBookCard(s, sem)).join('');
+  } catch(e) { container.innerHTML = ''; toast('فشل: ' + e.message, 'err'); }
+}
+
+function renderBookCard(s, sem) {
+  const statusBadge = s.status === 'ready'    ? badge('جاهز ✓', 'green')
+                    : s.status === 'indexing' ? badge('جارٍ الفهرسة...', 'yellow')
+                    : s.status === 'error'    ? badge('خطأ', 'red')
+                    : badge('لا يوجد', 'muted');
+
+  const progress = s.pages_total > 0
+    ? `<div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${s.pages_indexed} / ${s.pages_total} صفحة</div>
+        <div class="progress-bar"><div class="fill" style="width:${Math.round(s.pages_indexed/s.pages_total*100)}%"></div></div>
+       </div>` : '';
+
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-weight:600;font-size:15px">${s.name_ar} <span style="color:var(--muted);font-size:13px">(${s.name_en})</span></div>
+        <div style="color:var(--muted);font-size:12px;margin-top:3px">ID: ${s.subject_id}</div>
+      </div>
+      <div>${statusBadge}</div>
+    </div>
+    ${progress}
+    <div class="sep"></div>
+    <div style="font-weight:600;margin-bottom:10px;font-size:13px">رفع كتاب / تحديث</div>
+    <div class="form-row" style="align-items:flex-end">
+      <div class="field"><label>اسم الكتاب</label>
+        <input id="bname-${s.subject_id}" placeholder="مثال: الكيمياء — الفصل الأول 2025" style="width:220px" /></div>
+      <div class="field"><label>السنة الدراسية</label>
+        <input id="byear-${s.subject_id}" placeholder="مثال: 2024-2025" style="width:140px" /></div>
+      <div class="field"><label>لغة OCR</label>
+        <select id="bocr-${s.subject_id}">
+          <option value="ara+eng">عربي + إنجليزي</option>
+          <option value="ara">عربي فقط</option>
+          <option value="eng">إنجليزي فقط</option>
+        </select></div>
+    </div>
+    <div class="form-row" style="align-items:center;margin-top:8px">
+      <div class="file-input-wrap" id="fwrap-${s.subject_id}">
+        <div class="file-btn" id="fbtn-${s.subject_id}">📎 اختر ملف PDF</div>
+        <input type="file" accept=".pdf" onchange="onFileChange('${s.subject_id}', this)" />
+      </div>
+      <button class="btn btn-primary" onclick="uploadBook('${s.subject_id}','${sem}')">رفع وفهرسة</button>
+      ${s.status==='indexing' ? `<button class="btn btn-sm" style="background:var(--border)" onclick="pollStatus('${s.subject_id}','${sem}')">تحديث الحالة</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function onFileChange(subjId, input) {
+  const f = input.files[0];
+  if (!f) return;
+  selectedFiles[subjId] = f;
+  const btn = document.getElementById('fbtn-' + subjId);
+  btn.textContent = '📄 ' + f.name;
+  btn.closest('.file-input-wrap').querySelector('.file-btn').classList.add('has-file');
+}
+
+async function uploadBook(subjId, sem) {
+  const file = selectedFiles[subjId];
+  if (!file) { toast('اختر ملف PDF أولاً', 'err'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('book_name', document.getElementById('bname-' + subjId).value.trim());
+  fd.append('academic_year', document.getElementById('byear-' + subjId).value.trim());
+  fd.append('ocr_lang', document.getElementById('bocr-' + subjId).value);
+  try {
+    toast('جارٍ الرفع...');
+    await api('POST', `/admin/subjects/${sem}/${subjId}/pdf`, fd, true);
+    toast('✓ تم الرفع — جارٍ الفهرسة في الخلفية');
+    delete selectedFiles[subjId];
+    loadBooks(sem);
+  } catch(e) { toast('فشل الرفع: ' + e.message, 'err'); }
+}
+
+async function pollStatus(subjId, sem) {
+  try {
+    const s = await api('GET', `/admin/subjects/${sem}/${subjId}/book-status`);
+    toast(`الحالة: ${s.status} — ${s.pages_indexed}/${s.pages_total} صفحة`);
+    loadBooks(sem);
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── NOTIFICATIONS ────────────────────────────────────────────────────────────
+async function postNotif() {
+  const title = document.getElementById('notif-title').value.trim();
+  const body  = document.getElementById('notif-body').value.trim();
+  if (!title || !body) { toast('يرجى ملء العنوان والنص', 'err'); return; }
+  try {
+    await api('POST', `/admin/notifications?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`);
+    document.getElementById('notif-title').value = '';
+    document.getElementById('notif-body').value  = '';
+    toast('✓ تم إرسال الإشعار');
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+function loadAll() {
+  loadStats();
+  loadUsers();
+}
+
+if (adminKey) {
+  api('GET', '/admin/stats')
+    .then(() => { document.getElementById('login-screen').classList.add('hidden'); loadAll(); })
+    .catch(() => { adminKey = ''; });
+}
+</script>
+</body>
+</html>

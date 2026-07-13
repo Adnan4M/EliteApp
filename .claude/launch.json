@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "elite_bot/venv1/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "backend.main:app", "--app-dir", "elite_bot", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

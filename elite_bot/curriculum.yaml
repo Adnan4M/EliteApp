@@ -1,0 +1,41 @@
+# Maps each PDF to a grade + subject. The PDFs carry no grade/subject metadata
+# of their own, so this file is the single source of truth.
+#
+# TODO(adnan): every book is parked under البكالوريا because the real grade of
+# each file is unknown. Move them to the correct grade before launch.
+#
+# ocr_lang: "ara" for prose; "ara+eng" where Latin symbols matter (NH3, BF3),
+#           "eng" for the English Cambridge book.
+# has_text_layer: true skips OCR entirely (much faster).
+
+grades:
+  البكالوريا:
+    subjects:
+      التاريخ:
+        file: hist.pdf
+        ocr_lang: ara
+        has_text_layer: false
+      الكيمياء:
+        file: chem.pdf
+        ocr_lang: ara+eng
+        has_text_layer: false
+      الفيزياء:
+        file: phys.pdf
+        ocr_lang: ara+eng
+        has_text_layer: false
+      علم الأحياء:
+        file: bbio.pdf
+        ocr_lang: ara
+        has_text_layer: false
+      Biology (English):
+        file: bio.pdf
+        ocr_lang: eng
+        has_text_layer: true
+
+# Grades with no books yet. Students can still register.
+empty_grades:
+  - السابع
+  - الثامن
+  - التاسع
+  - العاشر
+  - الحادي عشر
