@@ -52,6 +52,7 @@ class Settings:
     log_dir: Path = field(default=BASE_DIR / "logs")
 
     render_dpi: int = 300
+    trial_days: int = 7
 
     @classmethod
     def load(cls) -> "Settings":

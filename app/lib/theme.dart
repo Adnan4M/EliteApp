@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class EliteTheme {
   static const seed      = Color(0xFF1B7A6B);   // deep teal
@@ -12,8 +11,7 @@ class EliteTheme {
   static ThemeData dark()  => _base(Brightness.dark);
 
   static TextTheme _textTheme(ColorScheme scheme) {
-    // Cairo — excellent Arabic readability, modern feel
-    final base = GoogleFonts.cairoTextTheme().apply(
+    final base = ThemeData(brightness: scheme.brightness).textTheme.apply(
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     );
