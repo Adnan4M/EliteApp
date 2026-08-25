@@ -78,7 +78,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     onRetry: _reload),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  onPressed: () => auth.logout(),
+                  onPressed: () => _confirmLogout(context),
                   icon: const Icon(Icons.logout),
                   label: const Text('تسجيل الخروج'),
                 ),
@@ -158,10 +158,33 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
       IconButton(
         tooltip: 'خروج',
-        onPressed: () => context.read<AuthController>().logout(),
+        onPressed: () => _confirmLogout(context),
         icon: const Icon(Icons.logout),
       ),
     ]);
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل الخروج'),
+        content: const Text('هل أنت متأكد من تسجيل الخروج؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.read<AuthController>().logout();
+            },
+            child: const Text('خروج', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _xpCard(BuildContext context, UserXp xp) {

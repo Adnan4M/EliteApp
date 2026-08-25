@@ -579,7 +579,11 @@ def cancel_challenge(
     # Notify connected players and close the room
     room = _rooms.pop(challenge_id, None)
     if room:
-        asyncio.create_task(room.broadcast({"type": "cancelled"}))
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(room.broadcast({"type": "cancelled"}))
+        except RuntimeError:
+            pass
     return {"status": "cancelled"}
 
 
@@ -647,19 +651,22 @@ async def challenge_ws(
         # If questions were never generated (AI failed at creation), retry now
         if not q_rows:
             logger.warning("challenge %s has no questions — regenerating", challenge_id)
-            generated = _questions_for_challenge(db, challenge)
-            for i, q in enumerate(generated):
-                db.add(ChallengeQuestion(
-                    challenge_id=challenge.id,
-                    q_index=i,
-                    question=q["question"],
-                    options=json.dumps(q["options"]),
-                    correct_index=q["correct_index"],
-                ))
-            db.commit()
-            q_rows = db.query(ChallengeQuestion).filter_by(
-                challenge_id=challenge_id
-            ).order_by(ChallengeQuestion.q_index).all()
+            try:
+                generated = _questions_for_challenge(db, challenge)
+                for i, q in enumerate(generated):
+                    db.add(ChallengeQuestion(
+                        challenge_id=challenge.id,
+                        q_index=i,
+                        question=q["question"],
+                        options=json.dumps(q["options"]),
+                        correct_index=q["correct_index"],
+                    ))
+                db.commit()
+                q_rows = db.query(ChallengeQuestion).filter_by(
+                    challenge_id=challenge_id
+                ).order_by(ChallengeQuestion.q_index).all()
+            except Exception as exc:
+                logger.warning("question regeneration failed: %s", exc)
 
         questions = [
             {
