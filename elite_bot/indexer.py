@@ -86,12 +86,13 @@ def _serialize_words(words: tuple[Word, ...]) -> list[list[Any]]:
     return [[w.text, w.left, w.top, w.width, w.height, round(w.confidence, 1)] for w in words]
 
 
-def _index_one_page(job: tuple[str, int, str, int, str, str]) -> dict[str, Any] | None:
+def _index_one_page(job: tuple) -> dict[str, Any] | None:
     """Worker: index a single page. Must be module-level for Windows spawn."""
-    pdf_path, page_no, ocr_lang, dpi, tesseract_cmd, tessdata_prefix = job
+    pdf_path, page_no, ocr_lang, dpi, tesseract_cmd, tessdata_prefix = job[:6]
+    force_ocr: bool = job[6] if len(job) > 6 else False
     engine = PdfEngine(pdf_path, dpi=dpi)
     try:
-        if engine.has_text_layer(page_no):
+        if not force_ocr and engine.has_text_layer(page_no):
             page = engine.native_text(page_no)
             text, words, from_ocr = page.text, page.words, False
         else:
@@ -274,8 +275,9 @@ def index_pdf(
     with PdfEngine(pdf_path, dpi=dpi) as engine:
         total = engine.page_count
 
+    force_ocr = has_text_layer is False
     jobs = [
-        (str(pdf_path), n, ocr_lang, dpi, settings.tesseract_cmd, settings.tessdata_prefix)
+        (str(pdf_path), n, ocr_lang, dpi, settings.tesseract_cmd, settings.tessdata_prefix, force_ocr)
         for n in range(total)
     ]
 

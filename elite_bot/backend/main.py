@@ -5,6 +5,7 @@ Run with:  uvicorn backend.main:app --reload
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -13,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.routers import admin, auth, codes, notifications, profile, search, support
+from backend.routers import admin, auth, challenges, codes, notifications, profile, search, store, study, support
+from backend.routers.challenges import start_expiry_task
 from config import settings
 from database import init_db
 
@@ -27,10 +29,15 @@ def create_app() -> FastAPI:
     init_db()  # creates app tables alongside the bot's
 
     app = FastAPI(
-        title="Elite Prep-Year API",
+        title="X Word API",
         version="0.1.0",
-        description="Backend for the Elite prep-year study app (shared with the bot).",
+        description="Backend for the X Word study app.",
+        on_startup=[lambda: asyncio.create_task(_deferred_start())],
     )
+
+
+    async def _deferred_start() -> None:
+        start_expiry_task()
 
     app.add_middleware(
         CORSMiddleware,
@@ -41,7 +48,7 @@ def create_app() -> FastAPI:
         expose_headers=["*"],
     )
 
-    for router in (auth, profile, search, codes, notifications, support, admin):
+    for router in (auth, profile, search, codes, notifications, support, admin, study, challenges, store):
         app.include_router(router.router)
 
     if _STATIC_DIR.exists():

@@ -31,17 +31,36 @@ class SubjectProgress(BaseModel):
     locked: bool  # true when the semester is not subscribed
 
 
+class SkinOut(BaseModel):
+    id: int
+    name_ar: str
+    emoji: str
+    bg_color: str
+
+
+class YearOut(BaseModel):
+    id: str
+    label_ar: str
+
+
 class ProfileOut(BaseModel):
     name: str | None
     email: EmailStr
     year: str
     current_semester: str
+    activated_semesters: list[str] = []
+    #: Years that actually have content. The app must render only these.
+    available_years: list[YearOut] = []
     subjects: list[SubjectProgress]
     rank: int | None
     total_students: int
+    gender: str | None = None
+    active_skin: SkinOut | None = None
+    xp: int = 0
 
 
 class ProgressIn(BaseModel):
+    year: str = "prep"
     semester: str
     subject_id: str
     chapter: str = Field(max_length=120)
@@ -71,6 +90,9 @@ class LocationOut(BaseModel):
     printed: str       # page number printed on the page
     occurrences: int
     position: int      # index into the ordered result list, for /search/page
+    chapter_header: str = ""  # running chapter title extracted from the top of the page
+    chapter_number: int | None = None  # admin-assigned chapter number
+    chapter_name: str | None = None   # admin-assigned chapter name
 
 
 class SearchOut(BaseModel):
@@ -99,6 +121,7 @@ class MCQOut(BaseModel):
     question: str
     options: list[str]
     correct_index: int
+    difficulty: str = "medium"
 
 
 class QuestionsOut(BaseModel):
@@ -157,6 +180,8 @@ class SubjectStatusOut(BaseModel):
     status: str | None       # book indexing status, or null if no upload
     pages_indexed: int
     pages_total: int
+    book_name: str | None = None
+    can_delete: bool = False  # True when there is an uploaded DB row to remove
 
 
 class CodeOut(BaseModel):

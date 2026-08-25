@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../config.dart';
+import '../state/auth_controller.dart';
 import 'notifications_tab.dart';
+import 'open_challenges_screen.dart';
 import 'profile_tab.dart';
 import 'search_tab.dart';
+import 'study_screen.dart';
 import 'support_tab.dart';
 
-/// Main container: bottom nav (Profile / Search / Notifications / Support)
-/// with a shared semester selector in the app bar.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -17,22 +19,42 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
-  // Shared across tabs; first semester is the default (trial covers it).
-  final ValueNotifier<String> _semester = ValueNotifier('first');
 
-  static const _titles = ['حسابي', 'البحث', 'الإشعارات', 'الدعم'];
+  // Proxy notifier so existing tabs that take ValueNotifier<String> still work.
+  late final ValueNotifier<String> _semesterNotifier;
+
+  static const _titles = ['حسابي', 'البحث', 'ادرس معي', 'التحديات', 'الإشعارات', 'الدعم'];
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthController>();
+    _semesterNotifier = ValueNotifier(auth.semester);
+    auth.addListener(_onAuthChanged);
+  }
+
+  void _onAuthChanged() {
+    final sem = context.read<AuthController>().semester;
+    if (_semesterNotifier.value != sem) _semesterNotifier.value = sem;
+  }
 
   @override
   void dispose() {
-    _semester.dispose();
+    context.read<AuthController>().removeListener(_onAuthChanged);
+    _semesterNotifier.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final semester = auth.semester;
+
     final tabs = [
-      ProfileTab(semester: _semester),
-      SearchTab(semester: _semester),
+      ProfileTab(semester: _semesterNotifier),
+      SearchTab(semester: _semesterNotifier),
+      StudyTab(semester: _semesterNotifier),
+      const OpenChallengesScreen(),
       const NotificationsTab(),
       const SupportTab(),
     ];
@@ -41,23 +63,26 @@ class _HomeShellState extends State<HomeShell> {
       appBar: AppBar(
         title: Text(_titles[_index]),
         actions: [
-          // Semester toggle affects Profile + Search.
-          if (_index == 0 || _index == 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: ValueListenableBuilder<String>(
-                valueListenable: _semester,
-                builder: (context, value, _) => SegmentedButton<String>(
-                  segments: Config.semesters
-                      .map((s) => ButtonSegment(
-                          value: s.id, label: Text(s.labelAr)))
-                      .toList(),
-                  selected: {value},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (sel) => _semester.value = sel.first,
-                ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 260),
+              child: SegmentedButton<String>(
+                segments: Config.semesters
+                    .where((s) {
+                      final activated = auth.activatedSemestersForYear;
+                      return activated.isEmpty || activated.contains(s.id);
+                    })
+                    .map((s) => ButtonSegment(
+                        value: s.id,
+                        label: Text(s.labelAr, overflow: TextOverflow.ellipsis)))
+                    .toList(),
+                selected: {semester},
+                showSelectedIcon: false,
+                onSelectionChanged: (sel) => auth.setSemester(sel.first),
               ),
             ),
+          ),
         ],
       ),
       body: IndexedStack(index: _index, children: tabs),
@@ -73,6 +98,14 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.search),
               selectedIcon: Icon(Icons.search),
               label: 'البحث'),
+          NavigationDestination(
+              icon: Icon(Icons.groups_outlined),
+              selectedIcon: Icon(Icons.groups),
+              label: 'ادرس معي'),
+          NavigationDestination(
+              icon: Icon(Icons.sports_esports_outlined),
+              selectedIcon: Icon(Icons.sports_esports),
+              label: 'التحديات'),
           NavigationDestination(
               icon: Icon(Icons.notifications_outlined),
               selectedIcon: Icon(Icons.notifications),

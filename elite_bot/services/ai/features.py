@@ -24,10 +24,11 @@ _CONTEXT_BUDGET = 6000
 _MAX_QUESTION_POOL = 30
 
 _GROUNDING = (
-    "You are Elite, a study assistant for secondary-school students. "
+    "You are Elite, a study assistant for medical preparatory-year students in Syria. "
     "Use ONLY the curriculum excerpts provided. Do not invent facts beyond them. "
-    "Answer in the SAME LANGUAGE as the excerpts (Arabic excerpts -> Arabic answer). "
-    "Keep the level appropriate for a secondary-school student."
+    "Write ALL responses in Arabic. Keep English scientific/medical terms (anatomy names, "
+    "drug names, Latin terms) in their original English within the Arabic text. "
+    "Keep the level appropriate for a first-year medical prep student."
 )
 
 
@@ -44,6 +45,7 @@ class MCQ:
     question: str
     options: list[str]
     correct_index: int
+    difficulty: str = "medium"
 
 
 def _context(contexts: list[str]) -> str:
@@ -71,12 +73,17 @@ class StudyAI:
         if self.cache and (hit := self.cache.get("summary", scope, keyword)) is not None:
             return hit
         prompt = (
-            f'Summarize everything the curriculum says about "{keyword}". '
-            "Merge repeated ideas, remove duplication, and produce one clean, "
-            "concise study summary as short bullet points.\n\n"
-            f"CURRICULUM EXCERPTS:\n{_context(contexts)}"
+            f'اكتب تعريفاً موجزاً جداً لمفهوم "{keyword}" بناءً على المقاطع أدناه. '
+            "يجب أن يكون الملخص قصيراً: جملة تعريف واحدة + 2-3 نقاط رئيسية فقط (لا أكثر). "
+            "استخدم التنسيق التالي في النص:\n"
+            "- **كلمة** للمصطلحات الأساسية والتعريفات المهمة (تظهر بالخط العريض)\n"
+            "- *كلمة* للأسماء العلمية والمصطلحات اللاتينية أو الإنجليزية (تظهر بخط مائل)\n"
+            "- _كلمة_ للنقاط التي تستحق التأكيد (تظهر بخط تحتي)\n"
+            "- ==كلمة== للكلمات التي تحتاج تمييزاً بلون (highlight)\n"
+            "اكتب الإجابة باللغة العربية وأبقِ المصطلحات الإنجليزية/العلمية بالإنجليزية.\n\n"
+            f"مقاطع المنهج:\n{_context(contexts)}"
         )
-        result = self.provider.complete(prompt, system=_GROUNDING, temperature=0.3, max_tokens=800)
+        result = self.provider.complete(prompt, system=_GROUNDING, temperature=0.3, max_tokens=300)
         if self.cache:
             self.cache.set("summary", scope, keyword, result)
         return result
@@ -88,33 +95,51 @@ class StudyAI:
         schema = {
             "type": "object",
             "properties": {
-                "simple": {"type": "string"},
-                "advanced": {"type": "string"},
+                "not_scientific": {"type": "boolean"},
+                "explanation": {"type": "string"},
                 "real_life": {"type": "string"},
                 "related": {"type": "array", "items": {"type": "string"}, "minItems": 3},
             },
+            "required": ["not_scientific"],
         }
+        ctx_text = _context(contexts)
+        if ctx_text:
+            source_instruction = (
+                "اشرح بناءً على صفحات الكتاب أدناه في المقام الأول، "
+                "وأكمل من معرفتك الطبية العامة إن لزم.\n\n"
+                f"صفحات الكتاب:\n{ctx_text}"
+            )
+            related_hint = "related = 4-6 مفاهيم مرتبطة من نفس الصفحات."
+        else:
+            source_instruction = "اشرح من معرفتك الطبية العامة."
+            related_hint = "related = 4-6 مفاهيم طبية مرتبطة بهذا المفهوم."
         prompt = (
-            f'Using ONLY the book pages below, explain "{keyword}" for a medical prep student.\n'
-            "Return ONLY a JSON object of this exact shape (values in the same language as the book):\n"
-            '{"simple": "...", "advanced": "...", "real_life": "...", '
-            '"related": ["...", "...", "..."]}\n'
-            "simple = a clear beginner summary drawn directly from the book text, "
-            "advanced = a deeper explanation of the mechanism or detail from the book, "
-            "real_life = a real clinical/medical example mentioned or implied by the book, "
-            "related = 3-5 related concept names found in the same pages.\n"
-            "Do NOT add any information not present in the book pages.\n\n"
-            f"BOOK PAGES:\n{_context(contexts)}"
+            f'أولاً: هل "{keyword}" مصطلح علمي أو طبي أو فيزيولوجي أو كيميائي أو بيولوجي؟\n'
+            'إذا لم يكن مصطلحاً علمياً/طبياً (مثلاً: تحية، سؤال عام، اسم شخص، كلمة عادية)، أعد فقط:\n'
+            '{"not_scientific": true}\n\n'
+            f'أما إذا كان مصطلحاً علمياً/طبياً، اشرح "{keyword}" شرحاً مفصّلاً وعميقاً '
+            f'لطالب في السنة التحضيرية الطبية. {source_instruction}\n'
+            "أعد JSON بهذا الشكل:\n"
+            '{"not_scientific": false, "explanation": "...", "real_life": "...", "related": ["...", "...", "..."]}\n'
+            "explanation = شرح شامل ومفصّل جداً: ابدأ بالتعريف، ثم اشرح الآلية خطوة بخطوة، "
+            "ثم التفاصيل والعوامل والأنواع إن وجدت، ثم الأهمية الطبية. استخدم العناوين الفرعية (###) والنقاط (-) والخط العريض (**). "
+            "يجب أن يكون طويلاً ويغطي الموضوع كاملاً (لا تقل عن 10-15 جملة). "
+            "real_life = سيناريو سريري/طبي واقعي مفصّل (3-4 جمل) يوضح هذا المفهوم عملياً. "
+            f"{related_hint}\n"
+            "اكتب باللغة العربية وأبقِ المصطلحات العلمية الإنجليزية كما هي.\n"
         )
         data = self.provider.complete_json(
-            prompt, schema=schema, system=_GROUNDING, max_tokens=3072
+            prompt, schema=schema, system=_GROUNDING, max_tokens=4096
         )
         if not isinstance(data, dict):
             raise AIError("explanation response was not an object")
+        if data.get("not_scientific"):
+            raise AIError("not_scientific")
         related = data.get("related") or []
+        expl_text = str(data.get("explanation", "")).strip()
         explanation = Explanation(
-            simple=str(data.get("simple", "")).strip(),
-            advanced=str(data.get("advanced", "")).strip(),
+            simple=expl_text,
+            advanced="",
             real_life=str(data.get("real_life", "")).strip(),
             related=[str(r).strip() for r in related if str(r).strip()],
         )
@@ -168,6 +193,7 @@ class StudyAI:
                     "question": {"type": "string"},
                     "options": {"type": "array", "items": {"type": "string"}, "minItems": 4},
                     "correct_index": {"type": "integer"},
+                    "difficulty": {"type": "string"},
                 },
             },
         }
@@ -179,17 +205,26 @@ class StudyAI:
                 "\nDo NOT repeat or paraphrase any of these already-asked questions: "
                 f"{recent}\n"
             )
+        easy = max(1, n // 3)
+        hard = max(1, n // 3)
+        medium = n - easy - hard
         prompt = (
-            f'Write exactly {n} NEW multiple-choice questions about "{keyword}", based ONLY '
-            "on the curriculum below. No true/false, no essay questions."
+            f'اكتب بالضبط {n} أسئلة اختيار من متعدد جديدة عن "{keyword}" '
+            "بناءً فقط على المنهج أدناه. لا تكرر أسئلة true/false أو مقالية."
             f"{avoid_clause}\n"
-            "Return ONLY a JSON array of objects of this exact shape (text in the "
-            "curriculum's language):\n"
+            f"وزّع الأسئلة على ثلاثة مستويات بالضبط:\n"
+            f"- {easy} سؤال سهل (تعريف أساسي أو حقيقة مباشرة)\n"
+            f"- {medium} سؤال متوسط (تطبيق أو مقارنة بين مفهومين)\n"
+            f"- {hard} سؤال صعب (تحليل، آلية معقدة، أو سيناريو سريري)\n"
+            "اكتب الأسئلة والخيارات باللغة العربية. "
+            "أبقِ المصطلحات العلمية والطبية الإنجليزية (أسماء أعضاء، أدوية، مصطلحات) "
+            "بالإنجليزية داخل نص السؤال العربي.\n"
+            "أعد JSON فقط بهذا الشكل:\n"
             '[{"question": "...", "options": ["...", "...", "...", "..."], '
-            '"correct_index": 0}]\n'
-            "Each object must have exactly 4 options and exactly one correct answer; "
-            "correct_index is the 0-based index of the correct option.\n\n"
-            f"CURRICULUM EXCERPTS:\n{_context(contexts)}"
+            '"correct_index": 0, "difficulty": "easy|medium|hard"}]\n'
+            "لكل سؤال بالضبط 4 خيارات وإجابة صحيحة واحدة؛ "
+            "correct_index هو الفهرس الصحيح (يبدأ من 0).\n\n"
+            f"مقاطع المنهج:\n{_context(contexts)}"
         )
         data = self.provider.complete_json(
             prompt, schema=schema, system=_GROUNDING, max_tokens=6144
@@ -203,7 +238,8 @@ class StudyAI:
 
 
 def _mcq_to_dict(m: MCQ) -> dict:
-    return {"question": m.question, "options": m.options, "correct_index": m.correct_index}
+    return {"question": m.question, "options": m.options,
+            "correct_index": m.correct_index, "difficulty": m.difficulty}
 
 
 def _dedup_questions(mcqs: list[MCQ]) -> list[MCQ]:
@@ -236,11 +272,15 @@ def _normalize_questions(raw: list, n: int) -> list[MCQ]:
         correct = max(0, min(correct, len(options) - 1))
 
         # Shuffle so the correct answer isn't always in the model's first slot.
+        difficulty = str(item.get("difficulty", "medium")).strip().lower()
+        if difficulty not in ("easy", "medium", "hard"):
+            difficulty = "medium"
         correct_text = options[correct]
         shuffled = options[:]
         random.shuffle(shuffled)
         result.append(
-            MCQ(question=question, options=shuffled, correct_index=shuffled.index(correct_text))
+            MCQ(question=question, options=shuffled,
+                correct_index=shuffled.index(correct_text), difficulty=difficulty)
         )
         if len(result) >= n:
             break

@@ -45,17 +45,21 @@ def _aware(value: datetime.datetime | None) -> datetime.datetime | None:
     return value
 
 
-def has_semester_access(db: Session, user: AppUser, semester: str) -> bool:
-    """True when a live trial or an unexpired grant covers this semester."""
+def has_semester_access(db: Session, user: AppUser, semester: str, year: str = "prep") -> bool:
+    """True when a live trial or an unexpired grant covers this (year, semester)."""
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    # Free trial covers the FIRST semester only.
-    if semester == "first" and _aware(user.trial_end) and now <= _aware(user.trial_end):
+    # Free trial covers the FIRST semester of the prep year only.
+    if year == "prep" and semester == "first" and _aware(user.trial_end) and now <= _aware(user.trial_end):
         return True
 
     grant = (
         db.query(SemesterAccess)
-        .filter(SemesterAccess.user_id == user.id, SemesterAccess.semester == semester)
+        .filter(
+            SemesterAccess.user_id == user.id,
+            SemesterAccess.year == year,
+            SemesterAccess.semester == semester,
+        )
         .first()
     )
     if grant is None:
@@ -64,14 +68,14 @@ def has_semester_access(db: Session, user: AppUser, semester: str) -> bool:
     return expires is None or now <= expires
 
 
-def require_semester_access(semester: str):
-    """Dependency factory that 402s when the user lacks access to ``semester``."""
+def require_semester_access(semester: str, year: str = "prep"):
+    """Dependency factory that 402s when the user lacks access to (year, semester)."""
 
     def _dep(user: AppUser = Depends(current_user), db: Session = Depends(get_db)) -> AppUser:
-        if not has_semester_access(db, user, semester):
+        if not has_semester_access(db, user, semester, year):
             raise HTTPException(
                 status.HTTP_402_PAYMENT_REQUIRED,
-                f"no active subscription for the {semester} semester",
+                f"no active subscription for {year}/{semester}",
             )
         return user
 

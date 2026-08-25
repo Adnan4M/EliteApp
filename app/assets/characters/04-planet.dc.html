@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f1ea;font-family:-apple-system,Helvetica,Arial,sans-serif;">
+  <div style="display:flex;align-items:center;gap:16px;background:#eef4ef;border-radius:12px;padding:16px 20px;width:320px;">
+    <div style="flex:1;text-align:right;">
+      <p style="margin:0;font-size:16px;font-weight:600;color:#1c1c1c;">Planet</p>
+      <p style="margin:4px 0 0;font-size:13px;color:#7a8079;">Word Atlas</p>
+    </div>
+    <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
+      <div style="width:64px;height:64px;border-radius:50%;background:#a8c62f;overflow:hidden;position:relative;">
+        <div style="position:absolute;top:22px;left:50%;transform:translateX(-50%) rotate(-16deg);width:52px;height:14px;border:3px solid #4a6b12;border-radius:50%;background:transparent;"></div>
+        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:50px;height:34px;border-radius:24px 24px 0 0;background:#f7f2e6;"></div>
+        <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:26px;height:26px;border-radius:50%;background:#f7f2e6;">
+          <div style="position:absolute;top:11px;left:6px;width:3px;height:3px;border-radius:50%;background:#2a2a28;"></div>
+          <div style="position:absolute;top:11px;right:6px;width:3px;height:3px;border-radius:50%;background:#2a2a28;"></div>
+          <div style="position:absolute;top:17px;left:50%;transform:translateX(-50%);width:8px;height:3px;border-bottom:1.5px solid #a5764f;border-radius:0 0 8px 8px;"></div>
+        </div>
+        <div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:30px;height:20px;border-radius:15px 15px 8px 8px;background:#4a6b12;"></div>
+        <div style="position:absolute;top:8px;left:calc(50% - 9px);width:7px;height:5px;border-radius:50%;background:#7fa32a;"></div>
+        <div style="position:absolute;top:14px;left:calc(50% + 4px);width:5px;height:4px;border-radius:50%;background:#7fa32a;"></div>
+      </div>
+      <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid #eef4ef;display:flex;align-items:center;justify-content:center;">
+        <div style="position:relative;width:13px;height:13px;">
+          <div style="position:absolute;inset:0;border-radius:50%;background:#a8c62f;"></div>
+          <div style="position:absolute;top:5px;left:-3px;right:-3px;height:3px;background:#f7f2e6;border-radius:2px;transform:rotate(-14deg);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

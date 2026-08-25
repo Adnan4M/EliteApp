@@ -57,6 +57,7 @@ def get_provider() -> AIProvider:
             settings.gemini_api_key,
             model=settings.ai_model,
             fallback_model=settings.ai_model_fallback,
+            extra_models=getattr(settings, 'ai_extra_models', ''),
         )
 
     logger.info("no AI provider configured; AI features will report unavailable")

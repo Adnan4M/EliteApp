@@ -36,8 +36,7 @@ def normalize(text: str) -> str:
     text = _ALEF.sub("ا", text)          # أ إ آ ٱ -> ا
     text = text.replace("ى", "ي")   # ى -> ي
     text = text.replace("ة", "ه")   # ة -> ه
-    text = text.replace("ؤ", "و")   # ؤ -> و
-    text = text.replace("ئ", "ي")   # ئ -> ي
+    # ؤ and ئ are kept as-is so "ودي" does not match "يؤدي"
     text = _SEPARATOR.sub("", text)
     return text.strip().lower()
 

@@ -38,6 +38,7 @@ class Settings:
     ai_provider: str
     ai_model: str
     ai_model_fallback: str
+    ai_extra_models: str
     gemini_api_key: str
     tesseract_cmd: str
     tessdata_prefix: str
@@ -62,16 +63,17 @@ class Settings:
         if tessdata and not Path(tessdata).is_absolute():
             tessdata = str((BASE_DIR / tessdata).resolve())
         return cls(
-            database_url=_get("DATABASE_URL", "sqlite:///elite.db"),
+            database_url=_get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'elite.db'}"),
             ai_provider=_get("AI_PROVIDER", "gemini").lower(),
-            ai_model=_get("GEMINI_MODEL", "gemini-flash-latest"),
-            ai_model_fallback=_get("GEMINI_MODEL_FALLBACK"),
+            ai_model=_get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+            ai_model_fallback=_get("GEMINI_MODEL_FALLBACK", "gemini-3.1-flash-lite"),
+            ai_extra_models=_get("GEMINI_EXTRA_MODELS", "gemini-3.5-flash,gemini-2.0-flash"),
             gemini_api_key=_get("GEMINI_API_KEY"),
             tesseract_cmd=_get("TESSERACT_CMD", "tesseract"),
             tessdata_prefix=tessdata,
             app_jwt_secret=_get("APP_JWT_SECRET", "dev-only-insecure-change-me"),
             app_admin_key=_get("APP_ADMIN_KEY"),
-            support_telegram=_get("SUPPORT_TELEGRAM", "https://t.me/EliteSupport"),
+            support_telegram=_get("SUPPORT_TELEGRAM", "https://t.me/Ahmed4bi"),
         )
 
     def ensure_dirs(self) -> None:

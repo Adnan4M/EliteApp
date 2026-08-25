@@ -150,7 +150,9 @@
   <div class="nav-item" onclick="nav('users')"><span class="icon">👤</span> المستخدمون</div>
   <div class="nav-item" onclick="nav('codes')"><span class="icon">🔑</span> رموز التفعيل</div>
   <div class="nav-item" onclick="nav('books')"><span class="icon">📚</span> الكتب والمحتوى</div>
+  <div class="nav-item" onclick="nav('chapters')"><span class="icon">📖</span> الفصول الدراسية</div>
   <div class="nav-item" onclick="nav('notifs')"><span class="icon">📢</span> الإشعارات</div>
+  <div class="nav-item" onclick="nav('questions')"><span class="icon">❓</span> بنك الأسئلة</div>
   <div class="version">Elite Admin v0.1</div>
 </div>
 
@@ -254,7 +256,49 @@
       <div class="tab active" onclick="switchBookTab('first', this)">الفصل الأول</div>
       <div class="tab" onclick="switchBookTab('second', this)">الفصل الثاني</div>
     </div>
+
+    <!-- Upload a brand-new subject not in the curriculum -->
+    <div class="card" style="margin-bottom:18px;border-color:var(--primary)">
+      <h3>➕ رفع كتاب جديد (مادة جديدة)</h3>
+      <div class="form-row" style="align-items:flex-end;flex-wrap:wrap">
+        <div class="field"><label>معرّف المادة (بالإنجليزية)</label>
+          <input id="new-subj-id" placeholder="مثال: questions_bio" style="width:180px" /></div>
+        <div class="field"><label>اسم المادة بالعربية</label>
+          <input id="new-subj-name" placeholder="مثال: أسئلة الأحياء" style="width:200px" /></div>
+        <div class="field"><label>السنة الدراسية</label>
+          <input id="new-subj-year" placeholder="2024-2025" style="width:130px" /></div>
+        <div class="field"><label>لغة OCR</label>
+          <select id="new-subj-ocr">
+            <option value="ara+eng">عربي + إنجليزي</option>
+            <option value="ara">عربي فقط</option>
+            <option value="eng">إنجليزي فقط</option>
+          </select></div>
+        <div class="field" style="align-self:flex-end;padding-bottom:6px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="new-subj-force" style="width:16px;height:16px;accent-color:var(--primary)" />
+            إجبار OCR
+          </label></div>
+      </div>
+      <div class="form-row" style="align-items:center;margin-top:4px">
+        <div class="file-input-wrap" id="fwrap-new">
+          <div class="file-btn" id="fbtn-new">📎 اختر ملف PDF</div>
+          <input type="file" accept=".pdf" onchange="onFileChange('__new__', this)" />
+        </div>
+        <button class="btn btn-primary" onclick="uploadNewSubject()">رفع وفهرسة</button>
+      </div>
+    </div>
+
     <div id="books-list"></div>
+  </div>
+
+  <!-- CHAPTERS -->
+  <div class="page" id="page-chapters">
+    <h2>📖 الفصول الدراسية</h2>
+    <div class="tabs">
+      <div class="tab active" onclick="switchChapterTab('first', this)">الفصل الأول</div>
+      <div class="tab" onclick="switchChapterTab('second', this)">الفصل الثاني</div>
+    </div>
+    <div id="chapters-list"></div>
   </div>
 
   <!-- NOTIFS -->
@@ -272,9 +316,79 @@
     </div>
   </div>
 
+  <!-- QUESTIONS PAGE -->
+  <div class="page" id="page-questions">
+    <h2>❓ بنك الأسئلة</h2>
+
+    <!-- Extract from file -->
+    <div class="card">
+      <h3>استخراج أسئلة من PDF</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>الفصل الدراسي</label>
+          <select id="q-sem">
+            <option value="first">الأول</option>
+            <option value="second">الثاني</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>رمز المادة (مثال: biology)</label>
+          <input id="q-subj" placeholder="biology" style="width:160px" />
+        </div>
+        <div class="field" style="flex:1;min-width:240px">
+          <label>ملف PDF (من مجلد الرفع)</label>
+          <select id="q-file" style="width:100%"><option value="">-- اختر ملفاً --</option></select>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-primary" onclick="loadQFiles()">تحديث القائمة</button>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-primary" id="q-extract-btn" onclick="startExtraction()">▶ استخرج</button>
+        </div>
+      </div>
+      <div id="q-progress" style="display:none;margin-top:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="spinner" style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div>
+          <span id="q-progress-txt" style="color:var(--muted);font-size:13px">جاري الاستخراج...</span>
+        </div>
+        <div style="background:var(--surface);border-radius:6px;height:6px;margin-top:10px;overflow:hidden">
+          <div id="q-bar" style="height:100%;background:var(--accent);width:0%;transition:width .3s"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter + count -->
+    <div class="card" style="padding:14px 20px">
+      <div class="form-row" style="margin-bottom:0;align-items:center">
+        <div class="field">
+          <label>فلترة — الفصل</label>
+          <select id="qf-sem" onchange="loadQuestions()">
+            <option value="">الكل</option>
+            <option value="first">الأول</option>
+            <option value="second">الثاني</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>رمز المادة</label>
+          <input id="qf-subj" placeholder="biology" style="width:140px" oninput="loadQuestions()" />
+        </div>
+        <div style="margin-right:auto;display:flex;gap:10px;align-items:center">
+          <span id="q-count" style="color:var(--muted);font-size:13px"></span>
+          <button class="btn btn-danger" onclick="clearQuestions()" style="font-size:12px;padding:6px 12px">حذف المصفّى</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="q-list"></div>
+  </div>
+
 </div><!-- /main -->
 
 <div id="toast"></div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 
 <script>
 // ── STATE ────────────────────────────────────────────────────────────────────
@@ -346,14 +460,16 @@ function nav(id) {
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.textContent.includes(navLabel(id))) n.classList.add('active');
   });
-  if (id === 'stats') loadStats();
-  if (id === 'users') loadUsers();
-  if (id === 'codes') loadCodes();
-  if (id === 'books') loadBooks(currentBookSem);
+  if (id === 'stats')    loadStats();
+  if (id === 'users')    loadUsers();
+  if (id === 'codes')    loadCodes();
+  if (id === 'books')     loadBooks(currentBookSem);
+  if (id === 'chapters')  loadChapters(currentChapterSem);
+  if (id === 'questions') { loadQFiles(); loadQuestions(); }
 }
 
 function navLabel(id) {
-  return { stats:'الإحصاءات', users:'المستخدمون', codes:'رموز التفعيل', books:'الكتب', notifs:'الإشعارات' }[id];
+  return { stats:'الإحصاءات', users:'المستخدمون', codes:'رموز التفعيل', books:'الكتب', chapters:'الفصول', notifs:'الإشعارات' }[id];
 }
 
 // ── STATS ────────────────────────────────────────────────────────────────────
@@ -526,26 +642,33 @@ function renderBookCard(s, sem) {
                     : s.status === 'error'    ? badge('خطأ', 'red')
                     : badge('لا يوجد', 'muted');
 
+  const pct = s.pages_total > 0 ? Math.round(s.pages_indexed / s.pages_total * 100) : 0;
   const progress = s.pages_total > 0
     ? `<div style="margin-top:8px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${s.pages_indexed} / ${s.pages_total} صفحة</div>
-        <div class="progress-bar"><div class="fill" style="width:${Math.round(s.pages_indexed/s.pages_total*100)}%"></div></div>
+        <div id="plbl-${s.subject_id}" style="font-size:11px;color:var(--muted);margin-bottom:4px">${s.pages_indexed} / ${s.pages_total} صفحة</div>
+        <div class="progress-bar"><div id="pbar-${s.subject_id}" class="fill" style="width:${pct}%"></div></div>
        </div>` : '';
 
-  return `<div class="card" style="margin-bottom:14px">
+  const bookNameHint = s.book_name ? `<span style="color:var(--muted);font-size:12px;margin-top:2px;display:block">📖 ${s.book_name}</span>` : '';
+  const deleteBtn = s.can_delete
+    ? `<button class="btn btn-sm btn-danger" onclick="deleteBook('${s.subject_id}','${sem}')" title="حذف الكتاب وملف الفهرس">🗑 حذف</button>`
+    : '';
+
+  return `<div class="card" style="margin-bottom:14px" id="book-card-${s.subject_id}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div style="font-weight:600;font-size:15px">${s.name_ar} <span style="color:var(--muted);font-size:13px">(${s.name_en})</span></div>
         <div style="color:var(--muted);font-size:12px;margin-top:3px">ID: ${s.subject_id}</div>
+        ${bookNameHint}
       </div>
-      <div>${statusBadge}</div>
+      <div style="display:flex;align-items:center;gap:8px">${statusBadge} ${deleteBtn}</div>
     </div>
     ${progress}
     <div class="sep"></div>
-    <div style="font-weight:600;margin-bottom:10px;font-size:13px">رفع كتاب / تحديث</div>
+    <div style="font-weight:600;margin-bottom:10px;font-size:13px">رفع كتاب / استبدال</div>
     <div class="form-row" style="align-items:flex-end">
       <div class="field"><label>اسم الكتاب</label>
-        <input id="bname-${s.subject_id}" placeholder="مثال: الكيمياء — الفصل الأول 2025" style="width:220px" /></div>
+        <input id="bname-${s.subject_id}" value="${s.book_name||''}" placeholder="مثال: الكيمياء — الفصل الأول 2025" style="width:220px" /></div>
       <div class="field"><label>السنة الدراسية</label>
         <input id="byear-${s.subject_id}" placeholder="مثال: 2024-2025" style="width:140px" /></div>
       <div class="field"><label>لغة OCR</label>
@@ -554,6 +677,13 @@ function renderBookCard(s, sem) {
           <option value="ara">عربي فقط</option>
           <option value="eng">إنجليزي فقط</option>
         </select></div>
+      <div class="field" style="align-self:flex-end;padding-bottom:6px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="bforce-${s.subject_id}" style="width:16px;height:16px;accent-color:var(--primary)" />
+          إجبار OCR
+        </label>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">للملفات ذات الخط المشفّر</div>
+      </div>
     </div>
     <div class="form-row" style="align-items:center;margin-top:8px">
       <div class="file-input-wrap" id="fwrap-${s.subject_id}">
@@ -564,6 +694,47 @@ function renderBookCard(s, sem) {
       ${s.status==='indexing' ? `<button class="btn btn-sm" style="background:var(--border)" onclick="pollStatus('${s.subject_id}','${sem}')">تحديث الحالة</button>` : ''}
     </div>
   </div>`;
+}
+
+async function deleteBook(subjId, sem) {
+  if (!confirm(`حذف كتاب "${subjId}"؟\nسيتم حذف الملف وفهرس البحث نهائياً.`)) return;
+  try {
+    await api('DELETE', `/admin/subjects/${sem}/${subjId}/pdf`);
+    toast(`✓ تم حذف ${subjId}`);
+    loadBooks(sem);
+  } catch(e) { toast('فشل الحذف: ' + e.message, 'err'); }
+}
+
+async function uploadNewSubject() {
+  const subjId = document.getElementById('new-subj-id').value.trim().replace(/\s+/g,'_').toLowerCase();
+  const name   = document.getElementById('new-subj-name').value.trim();
+  const year   = document.getElementById('new-subj-year').value.trim();
+  const ocr    = document.getElementById('new-subj-ocr').value;
+  const force  = document.getElementById('new-subj-force').checked;
+  const file   = selectedFiles['__new__'];
+
+  if (!subjId) { toast('أدخل معرّف المادة', 'err'); return; }
+  if (!file)   { toast('اختر ملف PDF أولاً', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('book_name', name || subjId);
+  fd.append('academic_year', year);
+  fd.append('ocr_lang', ocr);
+  fd.append('force_ocr', force ? 'true' : 'false');
+  try {
+    toast('جارٍ الرفع...');
+    await api('POST', `/admin/subjects/${currentBookSem}/${subjId}/pdf`, fd, true);
+    toast(`✓ تم رفع "${subjId}" — جارٍ الفهرسة`);
+    // Clear form
+    document.getElementById('new-subj-id').value = '';
+    document.getElementById('new-subj-name').value = '';
+    document.getElementById('fbtn-new').textContent = '📎 اختر ملف PDF';
+    document.getElementById('fbtn-new').classList.remove('has-file');
+    delete selectedFiles['__new__'];
+    loadBooks(currentBookSem);
+    startAutoPolling(subjId, currentBookSem);
+  } catch(e) { toast('فشل الرفع: ' + e.message, 'err'); }
 }
 
 function onFileChange(subjId, input) {
@@ -583,20 +754,272 @@ async function uploadBook(subjId, sem) {
   fd.append('book_name', document.getElementById('bname-' + subjId).value.trim());
   fd.append('academic_year', document.getElementById('byear-' + subjId).value.trim());
   fd.append('ocr_lang', document.getElementById('bocr-' + subjId).value);
+  fd.append('force_ocr', document.getElementById('bforce-' + subjId).checked ? 'true' : 'false');
   try {
     toast('جارٍ الرفع...');
     await api('POST', `/admin/subjects/${sem}/${subjId}/pdf`, fd, true);
     toast('✓ تم الرفع — جارٍ الفهرسة في الخلفية');
     delete selectedFiles[subjId];
     loadBooks(sem);
+    startAutoPolling(subjId, sem);
   } catch(e) { toast('فشل الرفع: ' + e.message, 'err'); }
+}
+
+// Active polling timers: subjId -> intervalId
+const _pollingTimers = {};
+
+function startAutoPolling(subjId, sem) {
+  if (_pollingTimers[subjId]) return; // already polling
+  _pollingTimers[subjId] = setInterval(async () => {
+    try {
+      const s = await api('GET', `/admin/subjects/${sem}/${subjId}/pdf`);
+      // Update progress bar in place without full reload
+      const bar = document.getElementById('pbar-' + subjId);
+      const lbl = document.getElementById('plbl-' + subjId);
+      if (bar && s.pages_total > 0) {
+        const pct = Math.round(s.pages_indexed / s.pages_total * 100);
+        bar.style.width = pct + '%';
+        if (lbl) lbl.textContent = `${s.pages_indexed} / ${s.pages_total} صفحة`;
+      }
+      if (s.status !== 'indexing') {
+        clearInterval(_pollingTimers[subjId]);
+        delete _pollingTimers[subjId];
+        if (s.status === 'ready') toast(`✅ اكتملت فهرسة ${subjId} — ${s.pages_indexed} صفحة`);
+        else toast(`⚠️ خطأ في فهرسة ${subjId}: ${s.error || 'غير معروف'}`, 'err');
+        loadBooks(sem);
+      }
+    } catch(_) {}
+  }, 3000); // poll every 3 seconds
 }
 
 async function pollStatus(subjId, sem) {
   try {
-    const s = await api('GET', `/admin/subjects/${sem}/${subjId}/book-status`);
+    const s = await api('GET', `/admin/subjects/${sem}/${subjId}/pdf`);
     toast(`الحالة: ${s.status} — ${s.pages_indexed}/${s.pages_total} صفحة`);
     loadBooks(sem);
+    if (s.status === 'indexing') startAutoPolling(subjId, sem);
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── CHAPTERS ─────────────────────────────────────────────────────────────────
+let currentChapterSem = 'first';
+// subjectId -> [{key, name}]
+const chapterData = {};
+
+const SUBJECT_NAMES = {
+  physics: 'الفيزياء', chemistry: 'الكيمياء', biology: 'الأحياء', history: 'التاريخ',
+  anatomy: 'التشريح', genetics: 'الوراثة', physiology: 'الفيزيولوجيا', statistics: 'الإحصاء',
+};
+const SEM_SUBJECTS = {
+  first: ['physics','chemistry','biology','history'],
+  second: ['anatomy','genetics','physiology','statistics'],
+};
+
+function switchChapterTab(sem, el) {
+  document.querySelectorAll('#page-chapters .tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentChapterSem = sem;
+  loadChapters(sem);
+}
+
+const subjectNameAr = {}; // subjectId -> name_ar
+
+async function loadChapters(sem) {
+  const container = document.getElementById('chapters-list');
+  container.innerHTML = '<p style="color:var(--muted);padding:12px">جارٍ التحميل...</p>';
+  try {
+    const data = await api('GET', `/admin/chapters/${sem}`);
+    data.forEach(s => {
+      chapterData[s.subject_id] = s.chapters.map(c => ({...c}));
+      subjectNameAr[s.subject_id] = s.name_ar || SUBJECT_NAMES[s.subject_id] || s.subject_id;
+    });
+    SEM_SUBJECTS[sem].forEach(id => {
+      if (!chapterData[id]) chapterData[id] = [];
+      if (!subjectNameAr[id]) subjectNameAr[id] = SUBJECT_NAMES[id] || id;
+    });
+    container.innerHTML = SEM_SUBJECTS[sem].map(id => renderChapterCard(id)).join('');
+  } catch(e) { container.innerHTML = ''; toast('فشل: ' + e.message, 'err'); }
+}
+
+function renderChapterCard(subjectId) {
+  const nameAr = subjectNameAr[subjectId] || SUBJECT_NAMES[subjectId] || subjectId;
+  const chs = chapterData[subjectId] || [];
+  const rows = chs.map((c, i) => `
+    <div class="ch-row" draggable="true" data-subj="${subjectId}" data-i="${i}"
+      style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:default;flex-wrap:wrap">
+      <span class="drag-handle" title="اسحب لإعادة الترتيب"
+        style="cursor:grab;color:var(--muted);font-size:16px;padding:0 4px;user-select:none">⠿</span>
+      <input type="number" min="1" value="${c.chapter_number != null ? c.chapter_number : ''}"
+        onchange="updateChapterField('${subjectId}',${i},'chapter_number',this.value)"
+        style="width:48px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:4px 4px;font-size:12px;text-align:center"
+        placeholder="#" title="رقم الفصل (يمكن تركه فارغاً)" />
+      <input value="${escHtml(c.name)}" onchange="updateChapterName('${subjectId}',${i},this.value)"
+        style="flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 10px;font-size:13px"
+        placeholder="اسم الفصل" />
+      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0" title="نطاق الصفحات">
+        <span style="font-size:11px;color:var(--muted)">ص</span>
+        <input type="number" min="1" value="${c.page_start||''}"
+          onchange="updateChapterPages('${subjectId}',${i},'start',this.value)"
+          style="width:58px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:12px;text-align:center"
+          placeholder="من" title="الصفحة الأولى" />
+        <span style="color:var(--muted)">—</span>
+        <input type="number" min="1" value="${c.page_end||''}"
+          onchange="updateChapterPages('${subjectId}',${i},'end',this.value)"
+          style="width:58px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:12px;text-align:center"
+          placeholder="إلى" title="الصفحة الأخيرة" />
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="removeChapter('${subjectId}',${i})">✕</button>
+    </div>`).join('');
+
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="color:var(--muted);font-size:12px">(${subjectId})</span>
+          <input id="name-ar-${subjectId}" value="${escHtml(nameAr)}"
+            onchange="subjectNameAr['${subjectId}']=this.value"
+            style="font-weight:600;font-size:15px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:2px 6px;outline:none;min-width:160px"
+            title="اسم المادة بالعربية" />
+        </div>
+      </div>
+      <span class="badge muted">${chs.length} فصل</span>
+    </div>
+    <div id="crows-${subjectId}">${rows || '<div class="empty">لا توجد فصول — أضف فصلاً أدناه</div>'}</div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <input id="new-ch-${subjectId}" placeholder="اسم الفصل الجديد" style="flex:1;min-width:160px"
+        onkeydown="if(event.key==='Enter')addChapter('${subjectId}')" />
+      <button class="btn btn-primary btn-sm" onclick="addChapter('${subjectId}')">+ إضافة</button>
+      <div style="display:flex;align-items:center;gap:6px;border-right:1px solid var(--border);padding-right:10px;margin-right:2px">
+        <input id="gen-count-${subjectId}" type="number" value="6" min="1" max="30"
+          style="width:58px;text-align:center" title="عدد الفصول" />
+        <button class="btn btn-sm" style="background:var(--surface);color:var(--text);border:1px solid var(--border)"
+          onclick="generateChapters('${subjectId}')">توليد تلقائي</button>
+      </div>
+      <button class="btn btn-primary" onclick="saveChapters('${subjectId}')">💾 حفظ</button>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function updateChapterName(subjectId, i, val) {
+  if (chapterData[subjectId]) {
+    chapterData[subjectId][i].name = val;
+    chapterData[subjectId][i].key = val.trim().replace(/\s+/g,'_').substring(0,32);
+  }
+}
+
+function updateChapterPages(subjectId, i, field, val) {
+  if (chapterData[subjectId]) {
+    const n = val === '' ? null : parseInt(val);
+    if (field === 'start') chapterData[subjectId][i].page_start = n;
+    else chapterData[subjectId][i].page_end = n;
+  }
+}
+
+function updateChapterField(subjectId, i, field, val) {
+  if (chapterData[subjectId]) {
+    chapterData[subjectId][i][field] = val === '' ? null : parseInt(val);
+  }
+}
+
+function addChapter(subjectId) {
+  const inp = document.getElementById('new-ch-' + subjectId);
+  const name = inp.value.trim();
+  if (!name) return;
+  if (!chapterData[subjectId]) chapterData[subjectId] = [];
+  const key = name.replace(/\s+/g,'_').substring(0,32);
+  chapterData[subjectId].push({ key, name });
+  inp.value = '';
+  // Re-render just this card
+  const container = document.getElementById('chapters-list');
+  const cards = container.querySelectorAll('.card');
+  const idx = SEM_SUBJECTS[currentChapterSem].indexOf(subjectId);
+  if (idx >= 0 && cards[idx]) cards[idx].outerHTML = renderChapterCard(subjectId);
+  // outerHTML replacement detaches from DOM, so re-render all
+  container.innerHTML = SEM_SUBJECTS[currentChapterSem].map(id => renderChapterCard(id)).join('');
+}
+
+// ── DRAG TO REORDER ──────────────────────────────────────────────────────────
+let _dragSubj = null, _dragFrom = null;
+
+document.addEventListener('dragstart', e => {
+  const row = e.target.closest('.ch-row');
+  if (!row) return;
+  _dragSubj = row.dataset.subj;
+  _dragFrom = parseInt(row.dataset.i);
+  e.dataTransfer.effectAllowed = 'move';
+  row.style.opacity = '0.4';
+});
+
+document.addEventListener('dragend', e => {
+  const row = e.target.closest('.ch-row');
+  if (row) row.style.opacity = '';
+});
+
+document.addEventListener('dragover', e => {
+  const row = e.target.closest('.ch-row');
+  if (!row || row.dataset.subj !== _dragSubj) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  // Visual indicator
+  document.querySelectorAll('.ch-row').forEach(r => r.style.borderTop = '');
+  row.style.borderTop = '2px solid var(--accent)';
+});
+
+document.addEventListener('dragleave', e => {
+  const row = e.target.closest('.ch-row');
+  if (row) row.style.borderTop = '';
+});
+
+document.addEventListener('drop', e => {
+  document.querySelectorAll('.ch-row').forEach(r => { r.style.borderTop = ''; r.style.opacity = ''; });
+  const row = e.target.closest('.ch-row');
+  if (!row || row.dataset.subj !== _dragSubj || _dragFrom === null) return;
+  e.preventDefault();
+  const to = parseInt(row.dataset.i);
+  if (to === _dragFrom) return;
+  const chs = chapterData[_dragSubj];
+  const [moved] = chs.splice(_dragFrom, 1);
+  chs.splice(to, 0, moved);
+  document.getElementById('chapters-list').innerHTML =
+    SEM_SUBJECTS[currentChapterSem].map(id => renderChapterCard(id)).join('');
+  _dragFrom = null; _dragSubj = null;
+});
+
+function generateChapters(subjectId) {
+  const n = parseInt(document.getElementById('gen-count-' + subjectId).value) || 6;
+  if (!confirm(`سيتم استبدال الفصول الحالية بـ ${n} فصول مرقّمة. هل تريد المتابعة؟`)) return;
+  chapterData[subjectId] = Array.from({length: n}, (_, i) => ({
+    key: `chapter_${i+1}`,
+    name: `الفصل ${i+1}`,
+    chapter_number: i + 1,
+    page_start: null,
+    page_end: null,
+  }));
+  document.getElementById('chapters-list').innerHTML =
+    SEM_SUBJECTS[currentChapterSem].map(id => renderChapterCard(id)).join('');
+}
+
+function removeChapter(subjectId, i) {
+  chapterData[subjectId].splice(i, 1);
+  document.getElementById('chapters-list').innerHTML =
+    SEM_SUBJECTS[currentChapterSem].map(id => renderChapterCard(id)).join('');
+}
+
+async function saveChapters(subjectId) {
+  const chapters = (chapterData[subjectId] || []).map((c, i) => ({
+    key: c.key || String(i),
+    name: c.name,
+    chapter_number: c.chapter_number ?? null,
+    page_start: c.page_start ?? null,
+    page_end: c.page_end ?? null,
+  }));
+  const name_ar = (document.getElementById('name-ar-' + subjectId) || {}).value || subjectNameAr[subjectId] || '';
+  try {
+    await api('PUT', `/admin/chapters/${currentChapterSem}/${subjectId}`, { name_ar, chapters });
+    subjectNameAr[subjectId] = name_ar;
+    toast(`✓ تم حفظ ${name_ar || subjectId}`);
   } catch(e) { toast('فشل: ' + e.message, 'err'); }
 }
 
@@ -611,6 +1034,140 @@ async function postNotif() {
     document.getElementById('notif-body').value  = '';
     toast('✓ تم إرسال الإشعار');
   } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+// ── QUESTIONS ────────────────────────────────────────────────────────────────
+async function loadQFiles() {
+  const sel = document.getElementById('q-file');
+  sel.innerHTML = '<option value="">جاري التحميل...</option>';
+  try {
+    const files = await api('GET', '/admin/questions/files');
+    sel.innerHTML = '<option value="">-- اختر ملفاً --</option>';
+    if (!files.length) {
+      sel.innerHTML += '<option disabled>لا توجد ملفات PDF في مجلد الرفع</option>';
+      toast('لا توجد ملفات PDF في مجلد الرفع', 'err');
+      return;
+    }
+    files.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.path;
+      opt.textContent = f.name;
+      sel.appendChild(opt);
+    });
+    toast(`✓ ${files.length} ملف متاح`);
+  } catch(e) {
+    sel.innerHTML = '<option value="">-- اختر ملفاً --</option>';
+    toast('فشل تحميل الملفات: ' + e.message + ' — أعد تشغيل الخادم', 'err');
+  }
+}
+
+let _qJobId = null;
+let _qJobTimer = null;
+
+async function startExtraction() {
+  const sem    = document.getElementById('q-sem').value;
+  const subj   = document.getElementById('q-subj').value.trim();
+  const path   = document.getElementById('q-file').value;
+  if (!subj)  return toast('أدخل رمز المادة', 'err');
+  if (!path)  return toast('اختر ملفاً', 'err');
+
+  const btn = document.getElementById('q-extract-btn');
+  btn.disabled = true;
+
+  const fd = new FormData();
+  fd.append('semester', sem);
+  fd.append('subject_id', subj);
+  fd.append('source_path', path);
+
+  try {
+    const res = await api('POST', '/admin/questions/extract', fd, true);
+    _qJobId = res.job_id;
+    document.getElementById('q-progress').style.display = '';
+    _pollExtractionStatus();
+  } catch(e) {
+    toast('فشل: ' + e.message, 'err');
+    btn.disabled = false;
+  }
+}
+
+function _pollExtractionStatus() {
+  if (_qJobTimer) clearTimeout(_qJobTimer);
+  api('GET', `/admin/questions/status/${_qJobId}`).then(s => {
+    const pct = s.total > 0 ? Math.round(s.done / s.total * 100) : 0;
+    document.getElementById('q-bar').style.width = pct + '%';
+    document.getElementById('q-progress-txt').textContent =
+      `صفحة ${s.done} من ${s.total} — استُخرج ${s.extracted || 0} سؤال — أخطاء: ${s.errors || 0}`;
+    if (s.status === 'running') {
+      _qJobTimer = setTimeout(_pollExtractionStatus, 1500);
+    } else {
+      document.getElementById('q-progress').style.display = 'none';
+      document.getElementById('q-extract-btn').disabled = false;
+      if (s.status === 'done') {
+        toast(`✓ اكتمل — ${s.extracted || 0} سؤال`);
+        loadQuestions();
+      } else {
+        toast('خطأ: ' + (s.error || 'فشل غير معروف'), 'err');
+      }
+    }
+  });
+}
+
+async function loadQuestions() {
+  const sem   = document.getElementById('qf-sem').value;
+  const subj  = document.getElementById('qf-subj').value.trim();
+  let url = '/admin/questions?limit=200';
+  if (sem)  url += '&semester=' + encodeURIComponent(sem);
+  if (subj) url += '&subject_id=' + encodeURIComponent(subj);
+  try {
+    const qs = await api('GET', url);
+    document.getElementById('q-count').textContent = `${qs.length} سؤال`;
+    const container = document.getElementById('q-list');
+    if (!qs.length) { container.innerHTML = '<div style="color:var(--muted);padding:20px">لا توجد أسئلة.</div>'; return; }
+    const LETTERS = ['أ','ب','ج','د'];
+    container.innerHTML = qs.map(q => `
+      <div class="card" style="margin-bottom:12px;padding:16px 20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:10px;line-height:1.5">${escHtml(q.question)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              ${['option_a','option_b','option_c','option_d'].map((opt, i) => `
+                <div style="padding:6px 10px;border-radius:6px;font-size:13px;
+                  background:${q.correct_index===i ? 'rgba(76,175,129,.2)' : 'var(--surface)'};
+                  border:1px solid ${q.correct_index===i ? 'var(--green)' : 'var(--border)'}">
+                  <strong>${LETTERS[i]}.</strong> ${escHtml(q[opt]||'')}
+                </div>`).join('')}
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--muted)">${q.semester} | ${q.subject_id} | ${q.source_file||''}</div>
+          </div>
+          <button class="btn btn-danger" style="font-size:11px;padding:4px 10px;white-space:nowrap" onclick="deleteQuestion(${q.id})">حذف</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+async function deleteQuestion(id) {
+  if (!confirm('حذف هذا السؤال؟')) return;
+  await api('DELETE', `/admin/questions/${id}`);
+  loadQuestions();
+}
+
+async function clearQuestions() {
+  const sem  = document.getElementById('qf-sem').value;
+  const subj = document.getElementById('qf-subj').value.trim();
+  const label = [sem, subj].filter(Boolean).join(' / ') || 'الكل';
+  if (!confirm(`حذف جميع الأسئلة (${label})؟`)) return;
+  let url = '/admin/questions?';
+  if (sem)  url += 'semester=' + encodeURIComponent(sem) + '&';
+  if (subj) url += 'subject_id=' + encodeURIComponent(subj);
+  try {
+    const r = await api('DELETE', url);
+    toast(`✓ حُذف ${r.deleted} سؤال`);
+    loadQuestions();
+  } catch(e) { toast('فشل: ' + e.message, 'err'); }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────

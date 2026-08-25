@@ -22,7 +22,7 @@ class EliteApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Elite',
+      title: 'X Word',
       debugShowCheckedModeBanner: false,
       theme: EliteTheme.light(),
       darkTheme: EliteTheme.dark(),

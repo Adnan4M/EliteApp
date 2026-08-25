@@ -12,6 +12,7 @@ class ApiException implements Exception {
   bool get isUnauthorized => status == 401;
   bool get isPaymentRequired => status == 402; // semester not subscribed
   bool get isRateLimited => status == 429; // AI daily limit reached
+  bool get isNotScientific => status == 422 && message == 'not_scientific';
 
   @override
   String toString() => 'ApiException($status): $message';
@@ -20,14 +21,22 @@ class ApiException implements Exception {
 /// Thin HTTP wrapper that injects the bearer token and decodes JSON/errors.
 class ApiClient {
   final http.Client _http;
+  final String _baseUrl;
+  final Map<String, String> _extra;
   String? _token;
 
-  ApiClient([http.Client? client]) : _http = client ?? http.Client();
+  ApiClient({
+    http.Client? client,
+    String? baseUrl,
+    Map<String, String>? extraHeaders,
+  })  : _http = client ?? http.Client(),
+        _baseUrl = baseUrl ?? Config.apiBase,
+        _extra = extraHeaders ?? {};
 
   void setToken(String? token) => _token = token;
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
-    final base = Uri.parse('${Config.apiBase}$path');
+    final base = Uri.parse('$_baseUrl$path');
     if (query == null) return base;
     return base.replace(
       queryParameters: query.map((k, v) => MapEntry(k, '$v')),
@@ -36,7 +45,9 @@ class ApiClient {
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
         if (_token != null) 'Authorization': 'Bearer $_token',
+        ..._extra,
       };
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
@@ -52,6 +63,21 @@ class ApiClient {
       headers: _headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    return _decode(res);
+  }
+
+  Future<dynamic> put(String path,
+      {Map<String, dynamic>? query, Object? body}) async {
+    final res = await _http.put(
+      _uri(path, query),
+      headers: _headers,
+      body: body != null ? jsonEncode(body) : null,
+    );
+    return _decode(res);
+  }
+
+  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) async {
+    final res = await _http.delete(_uri(path, query), headers: _headers);
     return _decode(res);
   }
 

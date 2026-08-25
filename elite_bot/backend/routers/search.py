@@ -27,8 +27,6 @@ from backend.schemas import (
     SuggestOut,
 )
 from services.summarize import extractive_summary
-from backend.models import PastQuestion
-from utils.arabic import normalize as ar_normalize
 from config import settings
 from services.ai import AIError, AINotConfigured, AIQuotaError, get_study_ai
 from services.pdf_engine import PdfEngine
@@ -77,10 +75,42 @@ def search(
         return SearchOut(query=keyword, query_id="", total=0, summary=None, locations=[])
 
     query_id = store.create(keyword, f"semester:{semester}", hits)
-    locations = [
-        LocationOut(
+
+    # Build chapter lookup: {(subject_id, semester): [SubjectChapter rows]}
+    from backend.models import SubjectChapter as _SC
+    _chapter_rows = db.query(_SC).filter(_SC.semester == semester).all()
+    _chapters_by_subject: dict[str, list] = {}
+    for _ch in _chapter_rows:
+        _chapters_by_subject.setdefault(_ch.subject_id, []).append(_ch)
+
+    def _find_chapter(subject_id: str, printed_page: str, chapter_header: str):
+        """Return (chapter_number, chapter_name) for a hit, or (None, None)."""
+        chapters = _chapters_by_subject.get(subject_id, [])
+        if not chapters:
+            return None, None
+        # Try page range match first
+        try:
+            pg = int(printed_page)
+            for ch in chapters:
+                if ch.page_start and ch.page_end and ch.page_start <= pg <= ch.page_end:
+                    return ch.chapter_number, ch.chapter_name
+        except (ValueError, TypeError):
+            pass
+        # Fall back to header text match
+        if chapter_header:
+            header_lower = chapter_header.strip()
+            for ch in chapters:
+                if ch.chapter_name and ch.chapter_name.strip() == header_lower:
+                    return ch.chapter_number, ch.chapter_name
+        return None, None
+
+    locations = []
+    for i, hit in enumerate(hits):
+        sid = _subject_id(semester, hit.subject)
+        ch_num, ch_name = _find_chapter(sid, hit.printed, hit.chapter_header)
+        locations.append(LocationOut(
             semester=semester,
-            subject_id=_subject_id(semester, hit.subject),
+            subject_id=sid,
             subject_name=hit.subject,
             book_id=hit.book_id,
             book_name=hit.book_name or hit.subject,
@@ -90,16 +120,17 @@ def search(
             printed=hit.printed,
             occurrences=hit.occurrences,
             position=i,
-        )
-        for i, hit in enumerate(hits)
-    ]
+            chapter_header=hit.chapter_header,
+            chapter_number=ch_num,
+            chapter_name=ch_name,
+        ))
     summary = extractive_summary(keyword, index, hits)
     return SearchOut(
         query=keyword, query_id=query_id, total=len(hits), summary=summary, locations=locations
     )
 
 
-def _gather_context(index: ScopeIndex, keyword: str, max_pages: int = 8) -> list[str]:
+def _gather_context(index: ScopeIndex, keyword: str, max_pages: int = 12) -> list[str]:
     """Text of the top pages mentioning ``keyword``, for grounding the AI."""
     hits = _engine.search(keyword, index, limit=max_pages)
     by_key = {(p.subject, p.page): p.text for p in index.pages}
@@ -146,8 +177,7 @@ def explanation(
     _require_access(db, user, semester)
     index = scope_index_for(semester, db)
     contexts = _gather_context(index, keyword)
-    if not contexts:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "keyword not found in this semester")
+    # If keyword isn't in the book, pass empty context — AI answers from general knowledge.
 
     ai = get_study_ai()
     if not ai.available():
@@ -158,7 +188,12 @@ def explanation(
     except AIQuotaError:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                             "AI daily limit reached — please try again later")
-    except (AINotConfigured, AIError) as exc:
+    except AIError as exc:
+        if str(exc) == "not_scientific":
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                "not_scientific")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"AI request failed: {exc}")
+    except AINotConfigured as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"AI request failed: {exc}")
     return ExplanationOut(
         keyword=keyword, simple=exp.simple, advanced=exp.advanced,
@@ -166,50 +201,18 @@ def explanation(
     )
 
 
-def _past_questions(db: Session, semester: str, keyword: str, count: int) -> list[MCQOut]:
-    """Return real past-exam MCQs that match the keyword."""
-    norm_kw = ar_normalize(keyword)
-    if not norm_kw:
-        return []
-    rows = (
-        db.query(PastQuestion)
-        .filter(PastQuestion.semester == semester)
-        .all()
-    )
-    matched = []
-    for row in rows:
-        if norm_kw in (row.keywords or ""):
-            matched.append(MCQOut(
-                question=row.question,
-                options=[row.option_a, row.option_b, row.option_c, row.option_d],
-                correct_index=row.correct_index,
-            ))
-        if len(matched) >= count:
-            break
-    return matched
-
-
 @router.post("/questions", response_model=QuestionsOut)
 def questions(
     semester: str = Query(...),
     keyword: str = Query(..., min_length=1),
-    count: int = Query(5, ge=1, le=10),
+    count: int = Query(6, ge=1, le=12),
     refresh: bool = Query(False, description="bypass cache and generate a new set"),
     user: AppUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> QuestionsOut:
     _require_access(db, user, semester)
-
-    # Real past-year questions take priority over AI-generated ones.
-    if not refresh:
-        past = _past_questions(db, semester, keyword, count)
-        if past:
-            return QuestionsOut(keyword=keyword, questions=past)
-
     index = scope_index_for(semester, db)
     contexts = _gather_context(index, keyword)
-    if not contexts:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "keyword not found in this semester")
 
     ai = get_study_ai()
     if not ai.available():
@@ -224,26 +227,51 @@ def questions(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"AI request failed: {exc}")
     return QuestionsOut(
         keyword=keyword,
-        questions=[MCQOut(question=m.question, options=m.options, correct_index=m.correct_index)
+        questions=[MCQOut(question=m.question, options=m.options,
+                          correct_index=m.correct_index, difficulty=m.difficulty)
                    for m in mcqs],
     )
 
 
 @router.get("/page")
 def page_image(
-    query_id: str = Query(...),
-    position: int = Query(..., ge=0),
+    semester: str = Query(...),
+    subject_id: str = Query(...),
+    page: int = Query(..., ge=0),
+    query: str = Query(...),
     user: AppUser = Depends(current_user),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    """Return the highlighted PNG for one search result page."""
-    session = store.get(query_id)
-    if session is None:
-        raise HTTPException(status.HTTP_410_GONE, "search expired; run it again")
-    if not 0 <= position < len(session.hits):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such result position")
+    """Return the highlighted PNG for one search result page (stateless)."""
+    from backend.models import SubjectBook
 
-    hit = session.hits[position]
-    png = _render_page(hit)
+    book = (
+        db.query(SubjectBook)
+        .filter(SubjectBook.semester == semester, SubjectBook.subject_id == subject_id)
+        .first()
+    )
+    if book is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "book not found")
+
+    # Re-run keyword search for the semester, filter to this subject+page.
+    # Match on source file, not display_subject — display_subject may be the
+    # English name ("Physiology") while subject_id is the key ("physiology").
+    index = scope_index_for(semester, db)
+    all_hits = _engine.search(query, index) if index else []
+    hit = next(
+        (h for h in all_hits if h.source == book.source_file and h.page == page),
+        None,
+    )
+
+    if hit is None:
+        # Fall back: render without highlights if page somehow not found.
+        source = book.source_file
+        if not source:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "no PDF for this subject")
+        png = _render_page_raw(source, page)
+    else:
+        png = _render_page(hit)
+
     return StreamingResponse(io.BytesIO(png), media_type="image/png")
 
 
@@ -256,6 +284,20 @@ def _subject_id(semester: str, subject_name: str) -> str:
         None,
     )
     return match.id if match else subject_name
+
+
+def _render_page_raw(source: str, page: int) -> bytes:
+    safe_source = source.replace("/", "_").replace("\\", "_")
+    cache = settings.cache_dir / f"{safe_source}_{page}_0.png"
+    if cache.exists():
+        return cache.read_bytes()
+    with PdfEngine(settings.pdf_dir / source, dpi=settings.render_dpi) as pdf:
+        png = pdf.render_page(page, highlights=[], scale=0.6)
+    try:
+        cache.write_bytes(png)
+    except OSError:
+        pass
+    return png
 
 
 def _render_page(hit) -> bytes:

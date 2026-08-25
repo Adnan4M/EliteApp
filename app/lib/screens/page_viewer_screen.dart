@@ -11,14 +11,12 @@ import '../widgets/common.dart';
 /// each rendered server-side with the keyword highlighted.
 class PageViewerScreen extends StatefulWidget {
   final String query;
-  final String queryId;
   final List<SearchLocation> locations;
   final int initialIndex;
 
   const PageViewerScreen({
     super.key,
     required this.query,
-    required this.queryId,
     required this.locations,
     this.initialIndex = 0,
   });
@@ -39,10 +37,16 @@ class _PageViewerScreenState extends State<PageViewerScreen> {
     super.dispose();
   }
 
-  Future<List<int>> _image(int position) {
+  Future<List<int>> _image(int index) {
+    final loc = widget.locations[index];
     return _cache.putIfAbsent(
-      position,
-      () => context.read<AuthController>().api.pageImage(widget.queryId, position),
+      index,
+      () => context.read<AuthController>().api.pageImage(
+            semester: loc.semester,
+            subjectId: loc.subjectId,
+            page: loc.page,
+            query: widget.query,
+          ),
     );
   }
 
@@ -54,10 +58,15 @@ class _PageViewerScreenState extends State<PageViewerScreen> {
         title: Text('«${widget.query}»'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(28),
-          child: Text(
-            '${loc.subjectName} — صفحة ${loc.printed} (${loc.occurrences}×) '
-            '· ${_current + 1}/${widget.locations.length}',
-            style: Theme.of(context).textTheme.bodySmall,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              '${loc.subjectName} — صفحة ${loc.printed} (${loc.occurrences}×) '
+              '· ${_current + 1}/${widget.locations.length}',
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ),
@@ -73,10 +82,15 @@ class _PageViewerScreenState extends State<PageViewerScreen> {
                 return const Loading();
               }
               if (snap.hasError) {
-                return ErrorView('تعذّر تحميل الصفحة',
-                    onRetry: () => setState(() {
-                          _cache.remove(widget.locations[i].position);
-                        }));
+                final isExpired = snap.error.toString().contains('410');
+                return ErrorView(
+                  isExpired
+                      ? 'انتهت صلاحية نتائج البحث. أعد البحث مرة أخرى.'
+                      : 'تعذّر تحميل الصفحة',
+                  onRetry: () => setState(() {
+                    _cache.remove(widget.locations[i].position);
+                  }),
+                );
               }
               return InteractiveViewer(
                 minScale: 1,

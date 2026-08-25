@@ -24,14 +24,13 @@ from config import settings
 PDF_DIR   = Path(__file__).parent / "pdfs" / "uploads" / "med_books"
 DONE_FILE = Path(__file__).parent / "batch_done.txt"
 
-# Same classification rules as batch_index.py
 RULES: list[tuple[list[str], str, str, str, str]] = [
     (["فيزياء", "physics", "فيزيا"],
         "first", "physics",   "الفيزياء الطبية",     "السنة التحضيرية"),
     (["كيميا", "chem", "chemistry"],
         "first", "chemistry", "الكيمياء الطبية",     "السنة التحضيرية"),
-    (["احياء بكالوريا", "biology bac"],
-        "first", "biology",   "علم الأحياء",          "البكالوريا"),
+    (["احياء", "biology bac", "bbio"],
+        "first", "biology",   "علم الأحياء",          "السنة التحضيرية"),
     (["cell", "خلية", "nucleus", "cytoskeleton", "membrane", "bio"],
         "first", "biology",   "بيولوجيا الخلية",     "السنة التحضيرية"),
     (["history", "تاريخ", "sketch history"],
@@ -50,8 +49,34 @@ RULES: list[tuple[list[str], str, str, str, str]] = [
 DEFAULT = ("first", "biology", "كتب متنوعة", "السنة التحضيرية")
 
 
-def classify(filename: str) -> tuple[str, str, str, str]:
-    fl = filename.lower()
+def classify(pdf: Path) -> tuple[str, str, str, str]:
+    """Classify by folder path first, then filename keywords."""
+    parts = [p.lower() for p in pdf.parts]
+    fl = pdf.name.lower()
+
+    # Files inside a 'Questions' folder go to biology (questions context)
+    if "questions" in parts:
+        # Detect semester from path
+        semester = "second" if any("term 2" in p or "second" in p for p in parts) else "first"
+        # Try to classify by subject name in filename
+        for keywords, sem, subject, book_name, year in RULES:
+            if any(kw.lower() in fl for kw in keywords):
+                return sem, subject, f"أسئلة — {book_name}", year
+        return semester, "biology", "أسئلة امتحانية", "السنة التحضيرية"
+
+    # Files inside Term 1 / Term 2 folders
+    if any("term 1" in p or "الفصل الأول" in p for p in parts):
+        for keywords, _, subject, book_name, year in RULES:
+            if any(kw.lower() in fl for kw in keywords):
+                return "first", subject, book_name, year
+        return "first", DEFAULT[1], DEFAULT[2], DEFAULT[3]
+    if any("term 2" in p or "الفصل الثاني" in p for p in parts):
+        for keywords, _, subject, book_name, year in RULES:
+            if any(kw.lower() in fl for kw in keywords):
+                return "second", subject, book_name, year
+        return "second", DEFAULT[1], DEFAULT[2], DEFAULT[3]
+
+    # Fallback: classify by filename
     for keywords, semester, subject, book_name, year in RULES:
         if any(kw.lower() in fl for kw in keywords):
             return semester, subject, book_name, year
@@ -59,7 +84,7 @@ def classify(filename: str) -> tuple[str, str, str, str]:
 
 
 def index_one(pdf: Path, db) -> None:
-    semester, subject_id, book_name, academic_year = classify(pdf.name)
+    semester, subject_id, book_name, academic_year = classify(pdf)
 
     # Copy file into the uploads folder with a unique safe name
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", pdf.name)
@@ -136,9 +161,10 @@ def index_one(pdf: Path, db) -> None:
     except Exception:
         pass
 
-    # Mark as done
+    # Mark as done (use relative path to handle subdirectories)
+    rel = str(pdf.relative_to(PDF_DIR))
     with DONE_FILE.open("a", encoding="utf-8") as f:
-        f.write(pdf.name + "\n")
+        f.write(rel + "\n")
 
 
 def main() -> None:
@@ -148,8 +174,10 @@ def main() -> None:
     if DONE_FILE.exists():
         already_done = set(DONE_FILE.read_text(encoding="utf-8").splitlines())
 
-    pdfs = sorted(PDF_DIR.glob("*.pdf"))
-    pending = [p for p in pdfs if p.name not in already_done]
+    # Scan all subdirectories (Books/Term 1, Books/Term 2, Questions, etc.)
+    pdfs = sorted(PDF_DIR.rglob("*.pdf"))
+    # Use relative path from PDF_DIR as key to avoid name collisions across subdirs
+    pending = [p for p in pdfs if str(p.relative_to(PDF_DIR)) not in already_done]
 
     print(f"Total PDFs : {len(pdfs)}")
     print(f"Already done: {len(already_done)}")

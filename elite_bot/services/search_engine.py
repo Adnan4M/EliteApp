@@ -72,10 +72,41 @@ class PageHit:
     book_id: str = ""
     book_name: str = ""
     academic_year: str = ""
+    chapter_header: str = ""
 
     @property
     def occurrences(self) -> int:
         return len(self.matched_words)
+
+
+def _extract_chapter_header(words: tuple[Word, ...]) -> str:
+    """Return the running chapter title from the topmost text line of a page.
+
+    Arabic textbooks print the chapter (or unit) name as a header on every page.
+    We find it by taking the topmost words, skipping pure page-number digits, and
+    capping to a reasonable word count so we never capture body text.
+    """
+    if not words:
+        return ""
+    heights = [w.height for w in words]
+    median_h = sorted(heights)[len(heights) // 2] if heights else 30
+    line_h = max(int(median_h * 1.8), 25)
+
+    min_top = min(w.top for w in words)
+
+    def _line_words(top_from: int) -> list[str]:
+        line = [w for w in words if top_from <= w.top <= top_from + line_h]
+        return [w.text for w in sorted(line, key=lambda w: w.left, reverse=True)
+                if not w.text.strip().isdigit() and len(w.text.strip()) > 1]
+
+    header = _line_words(min_top)
+    if not header:
+        # Page number might occupy the very first line; try the next line down
+        next_tops = [w.top for w in words if w.top > min_top + line_h]
+        if next_tops:
+            header = _line_words(min(next_tops))
+
+    return " ".join(header[:8]).strip()
 
 
 @dataclass(slots=True)
@@ -89,6 +120,7 @@ class IndexedPage:
     book_id: str = ""
     book_name: str = ""
     academic_year: str = ""
+    chapter_header: str = ""
     normalized_words: tuple[str, ...] = field(default=(), repr=False)
 
 
@@ -134,6 +166,7 @@ class ScopeIndex:
                         book_id=book.resolved_id(),
                         book_name=book.resolved_name(),
                         academic_year=book.academic_year,
+                        chapter_header=_extract_chapter_header(words),
                         normalized_words=normalized,
                     )
                 )
@@ -179,6 +212,51 @@ def reload_indexes() -> None:
     _cached_scope.cache_clear()
 
 
+def _proximity_score(page: IndexedPage, tokens: list[str], window: int = 5) -> float:
+    """Score how close the tokens appear to each other on the page.
+
+    Finds the smallest span (in word positions) that contains one occurrence
+    of every token. A span of 0 or 1 means adjacent words (phrase match).
+    Returns a score in (0, 1] — closer = higher. Returns 0 if any token is
+    missing or all occurrences are further apart than ``window``.
+    """
+    # Position lists: indices in page.normalized_words where each token matches.
+    positions: list[list[int]] = []
+    for token in tokens:
+        pos = [i for i, norm in enumerate(page.normalized_words)
+               if norm and token in norm]
+        if not pos:
+            return 0.0
+        positions.append(pos)
+
+    # Sliding-window approach: advance the pointer for the token with the
+    # smallest current index until we've tried every combination efficiently.
+    import heapq
+    # Build a min-heap of (position, token_index, list_cursor).
+    heap = [(pos[0], ti, 0) for ti, pos in enumerate(positions)]
+    heapq.heapify(heap)
+    max_pos = max(pos[0] for pos in positions)
+    best_span = max_pos - heap[0][0]
+
+    while True:
+        min_pos, ti, cursor = heapq.heappop(heap)
+        span = max_pos - min_pos
+        if span < best_span:
+            best_span = span
+        if best_span == 0:
+            break
+        cursor += 1
+        if cursor >= len(positions[ti]):
+            break
+        new_pos = positions[ti][cursor]
+        heapq.heappush(heap, (new_pos, ti, cursor))
+        max_pos = max(max_pos, new_pos)
+
+    if best_span > window:
+        return 0.0
+    return 1.0 - best_span / (window + 1)
+
+
 class SearchEngine:
     """Keyword search over a scope's pages, optionally reranked semantically."""
 
@@ -186,13 +264,26 @@ class SearchEngine:
         self._semantic = semantic
 
     def search(self, query: str, index: ScopeIndex, limit: int = MAX_HITS) -> list[PageHit]:
-        """Find every page in ``index`` mentioning ``query``, best first."""
+        """Find pages mentioning ``query``, best first.
+
+        Single-word: substring match anywhere on page.
+        Multi-word: AND (all tokens on page) + proximity scoring so pages
+        where the words appear near each other rank first.
+        """
         tokens = tokenize(query)
         if not tokens or index.is_empty:
             return []
 
+        if len(tokens) > 1:
+            candidate_sets = [index.candidates([t]) for t in tokens]
+            page_indices = candidate_sets[0]
+            for s in candidate_sets[1:]:
+                page_indices = page_indices & s
+        else:
+            page_indices = index.candidates(tokens)
+
         hits: list[PageHit] = []
-        for page_idx in index.candidates(tokens):
+        for page_idx in page_indices:
             page = index.pages[page_idx]
             matched = tuple(
                 word
@@ -202,6 +293,7 @@ class SearchEngine:
             if not matched:
                 continue
             confidence = sum(w.confidence for w in matched) / len(matched)
+            proximity = _proximity_score(page, tokens) if len(tokens) > 1 else 0
             hits.append(
                 PageHit(
                     scope=index.scope_id,
@@ -209,11 +301,13 @@ class SearchEngine:
                     source=page.source,
                     page=page.page,
                     printed=page.printed,
-                    score=len(matched) + confidence / 1000.0,
+                    # proximity bonus: pages where words appear close together rank first
+                    score=len(matched) + confidence / 1000.0 + proximity * 10,
                     matched_words=matched,
                     book_id=page.book_id,
                     book_name=page.book_name,
                     academic_year=page.academic_year,
+                    chapter_header=page.chapter_header,
                 )
             )
 

@@ -1,15 +1,12 @@
 # Maps each PDF to a grade + subject. The PDFs carry no grade/subject metadata
 # of their own, so this file is the single source of truth.
 #
-# TODO(adnan): every book is parked under البكالوريا because the real grade of
-# each file is unknown. Move them to the correct grade before launch.
-#
 # ocr_lang: "ara" for prose; "ara+eng" where Latin symbols matter (NH3, BF3),
 #           "eng" for the English Cambridge book.
 # has_text_layer: true skips OCR entirely (much faster).
 
 grades:
-  البكالوريا:
+  السنة التحضيرية:
     subjects:
       التاريخ:
         file: hist.pdf

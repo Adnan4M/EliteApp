@@ -21,7 +21,7 @@ from utils.arabic import normalize
 logger = logging.getLogger(__name__)
 
 #: Bump when the cached value shape changes, to invalidate old entries.
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 class AICache:

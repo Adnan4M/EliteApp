@@ -8,6 +8,8 @@ import '../state/auth_controller.dart';
 import 'search_result_screen.dart';
 import 'subscription_screen.dart';
 
+import '../widgets/common.dart';
+
 /// Smart search entry: a field with live suggestions that opens results.
 class SearchTab extends StatefulWidget {
   final ValueNotifier<String> semester;
@@ -58,14 +60,10 @@ class _SearchTabState extends State<SearchTab> {
     try {
       final result = await auth.api.search(widget.semester.value, keyword);
       if (!mounted) return;
-      if (result.total == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('لم أجد «$keyword» في هذا الفصل')));
-        return;
-      }
       Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => SearchResultScreen(
-            semester: widget.semester.value, result: result),
+        builder: (_) => result.total == 0
+            ? _NotFoundPage(semester: widget.semester.value, keyword: keyword)
+            : SearchResultScreen(semester: widget.semester.value, result: result),
       ));
     } on ApiException catch (e) {
       if (e.isPaymentRequired) {
@@ -158,4 +156,139 @@ class _SearchTabState extends State<SearchTab> {
           ),
         ),
       );
+}
+
+// ─── Shown when the keyword has no results in any book ───────────────────────
+
+class _NotFoundPage extends StatefulWidget {
+  final String semester;
+  final String keyword;
+  const _NotFoundPage({required this.semester, required this.keyword});
+
+  @override
+  State<_NotFoundPage> createState() => _NotFoundPageState();
+}
+
+class _NotFoundPageState extends State<_NotFoundPage> {
+  bool _aiLoading = false;
+  String? _aiResult;
+  String? _aiError;
+
+  Future<void> _searchByAI() async {
+    setState(() {
+      _aiLoading = true;
+      _aiError = null;
+    });
+    try {
+      final e = await context
+          .read<AuthController>()
+          .api
+          .explanation(widget.semester, widget.keyword);
+      if (mounted) setState(() => _aiResult = e.simple);
+    } catch (e) {
+      if (mounted) {
+        String err;
+        if (e is ApiException && e.isNotScientific) {
+          err = 'not_scientific';
+        } else if (e is ApiException) {
+          err = e.message;
+        } else {
+          err = 'حدث خطأ. حاول مجدداً.';
+        }
+        setState(() => _aiError = err);
+      }
+    } finally {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: Text('«${widget.keyword}»')),
+      body: _aiResult != null
+          ? _buildAIResult(scheme)
+          : _buildNotFound(scheme),
+    );
+  }
+
+  Widget _buildNotFound(ColorScheme scheme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 64,
+                color: scheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            Text(
+              'لم يُعثر على «${widget.keyword}» في أي كتاب من كتب هذا الفصل.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: scheme.onSurface),
+            ),
+            const SizedBox(height: 24),
+            if (_aiLoading)
+              const CircularProgressIndicator()
+            else if (_aiError == 'not_scientific') ...[
+              const SizedBox(height: 8),
+              Icon(Icons.block_rounded, size: 40,
+                  color: scheme.error.withValues(alpha: 0.7)),
+              const SizedBox(height: 10),
+              Text(
+                'يُسمح بالبحث عن المصطلحات العلمية والطبية فقط.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: scheme.error),
+              ),
+            ] else ...[
+              if (_aiError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(_aiError!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center),
+                ),
+              FilledButton.icon(
+                onPressed: _searchByAI,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('اشرح بالذكاء الاصطناعي'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIResult(ColorScheme scheme) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          color: scheme.secondaryContainer.withValues(alpha: 0.4),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Icon(Icons.info_outline, size: 18, color: scheme.secondary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'هذا المصطلح غير موجود في الكتاب — الشرح أدناه من الذكاء الاصطناعي.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'شرح الذكاء الاصطناعي',
+          icon: Icons.auto_awesome,
+          child: buildMarkdown(_aiResult!),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
 }

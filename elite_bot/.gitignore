@@ -1,0 +1,15 @@
+.env
+*.pyc
+__pycache__/
+*.pyo
+*.db-journal
+*.db-shm
+*.db-wal
+*.session
+batch_done.txt
+visited_labels.json
+logs/
+cache/
+*.zip
+*.pdf
+tessdata/

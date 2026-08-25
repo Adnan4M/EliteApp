@@ -1,8 +1,18 @@
 """SQLAlchemy models for the app backend.
 
 These live in the same database as the bot's tables but are entirely separate:
-the app authenticates by email/password and gates access per semester with
-single-use codes, whereas the bot uses Telegram identity.
+the app authenticates by email/password and gates access per (year, semester)
+with single-use codes, whereas the bot uses Telegram identity.
+
+Year IDs
+--------
+"prep"   — السنة التحضيرية  (current)
+"year1"  — السنة الأولى
+"year2"  — السنة الثانية
+… and so on as content is added.
+
+Every content-bearing table carries a ``year`` column (default "prep") so that
+all existing rows remain valid after the column is added via migration.
 """
 
 from __future__ import annotations
@@ -34,9 +44,11 @@ class AppUser(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     name = Column(String, nullable=True)
-    year = Column(String, default="prep")  # only prep year for now
+    year = Column(String, default="prep")  # active academic year, e.g. "prep", "year1"
     created_at = Column(DateTime, default=_utcnow)
     last_login = Column(DateTime, nullable=True)
+    gender = Column(String, nullable=True)          # 'male' | 'female'
+    active_skin_id = Column(Integer, nullable=True)
 
     # Free trial applies to the FIRST semester only.
     trial_end = Column(DateTime, nullable=True)
@@ -46,13 +58,14 @@ class AppUser(Base):
 
 
 class SemesterAccess(Base):
-    """Records that a user has access to one semester (trial or redeemed code)."""
+    """Records that a user has access to one (year, semester) pair."""
 
     __tablename__ = "semester_access"
-    __table_args__ = (UniqueConstraint("user_id", "semester", name="uq_user_semester"),)
+    __table_args__ = (UniqueConstraint("user_id", "year", "semester", name="uq_user_year_semester"),)
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, index=True)
+    year = Column(String, nullable=False, default="prep")
     semester = Column(String, nullable=False)  # "first" / "second"
     source = Column(String, default="code")    # "trial" / "code"
     granted_at = Column(DateTime, default=_utcnow)
@@ -66,7 +79,8 @@ class ActivationCode(Base):
 
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, nullable=False, index=True)
-    semester = Column(String, nullable=False)  # which semester it unlocks
+    year = Column(String, nullable=False, default="prep")    # which academic year it unlocks
+    semester = Column(String, nullable=False)                 # which semester it unlocks
     max_uses = Column(Integer, default=1)
     used_count = Column(Integer, default=0)
     enabled = Column(Boolean, default=True)
@@ -95,11 +109,12 @@ class AppProgress(Base):
 
     __tablename__ = "app_progress"
     __table_args__ = (
-        UniqueConstraint("user_id", "semester", "subject_id", "chapter", name="uq_progress"),
+        UniqueConstraint("user_id", "year", "semester", "subject_id", "chapter", name="uq_progress"),
     )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, index=True)
+    year = Column(String, nullable=False, default="prep")
     semester = Column(String, nullable=False)
     subject_id = Column(String, nullable=False)
     chapter = Column(String, nullable=False)
@@ -115,9 +130,10 @@ class SubjectBook(Base):
     """
 
     __tablename__ = "subject_books"
-    __table_args__ = (UniqueConstraint("semester", "subject_id", "source_file", name="uq_subject_book_file"),)
+    __table_args__ = (UniqueConstraint("year", "semester", "subject_id", "source_file", name="uq_subject_book_file"),)
 
     id = Column(Integer, primary_key=True)
+    year = Column(String, nullable=False, default="prep")
     semester = Column(String, nullable=False)
     subject_id = Column(String, nullable=False)
 
@@ -142,6 +158,7 @@ class PastQuestion(Base):
     __tablename__ = "past_questions"
 
     id            = Column(Integer, primary_key=True)
+    year          = Column(String, nullable=False, index=True, default="prep")
     semester      = Column(String, nullable=False, index=True)
     subject_id    = Column(String, nullable=False, index=True)
     question      = Column(String, nullable=False)
@@ -153,6 +170,156 @@ class PastQuestion(Base):
     keywords      = Column(String, nullable=True)     # space-separated normalized keywords
     source_file   = Column(String, nullable=True)     # which PDF this came from
     created_at    = Column(DateTime, default=_utcnow)
+
+
+class UserXp(Base):
+    """XP and level for gamification."""
+
+    __tablename__ = "user_xp"
+
+    user_id = Column(Integer, ForeignKey("app_users.id"), primary_key=True)
+    xp = Column(Integer, default=0)
+    level = Column(Integer, default=1)
+    total_challenges = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class StudyPair(Base):
+    """Two students studying together."""
+
+    __tablename__ = "study_pairs"
+
+    id = Column(Integer, primary_key=True)
+    user_a_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, index=True)
+    user_b_id = Column(Integer, ForeignKey("app_users.id"), nullable=True, index=True)
+    invite_code = Column(String, unique=True, nullable=True, index=True)
+    status = Column(String, default="pending")  # pending / active / declined
+    created_at = Column(DateTime, default=_utcnow)
+
+
+class ChapterCompletion(Base):
+    """A user marking a chapter as done."""
+
+    __tablename__ = "chapter_completions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "year", "semester", "subject_id", "chapter_key",
+                         name="uq_chapter_completion"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, index=True)
+    year = Column(String, nullable=False, default="prep")
+    semester = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    chapter_key = Column(String, nullable=False)
+    done_at = Column(DateTime, default=_utcnow)
+
+
+class Challenge(Base):
+    """A Kahoot-style challenge room."""
+
+    __tablename__ = "challenges"
+
+    id = Column(Integer, primary_key=True)
+    type = Column(String, nullable=False)           # "pair" / "open"
+    year = Column(String, nullable=False, default="prep")
+    semester = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    chapters = Column(String, nullable=False)        # JSON list of chapter_key strings
+    status = Column(String, default="lobby")         # lobby / active / finished
+    host_id = Column(Integer, ForeignKey("app_users.id"), nullable=False)
+    invite_code = Column(String, unique=True, nullable=True)  # 6-char code for pair challenges
+    is_private = Column(Boolean, default=False)               # private open rooms hidden from list
+    question_count = Column(Integer, default=10)              # how many questions in this game
+    created_at = Column(DateTime, default=_utcnow)
+
+
+class ChallengePlayer(Base):
+    """A user who has joined a challenge."""
+
+    __tablename__ = "challenge_players"
+    __table_args__ = (UniqueConstraint("challenge_id", "user_id", name="uq_cp"),)
+
+    id = Column(Integer, primary_key=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False)
+    score = Column(Integer, default=0)
+    xp_earned = Column(Integer, default=0)
+    joined_at = Column(DateTime, default=_utcnow)
+
+
+class ChallengeQuestion(Base):
+    """One MCQ question belonging to a challenge."""
+
+    __tablename__ = "challenge_questions"
+
+    id = Column(Integer, primary_key=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=False, index=True)
+    q_index = Column(Integer, nullable=False)
+    question = Column(String, nullable=False)
+    options = Column(String, nullable=False)   # JSON list of 4 option strings
+    correct_index = Column(Integer, nullable=False)
+
+
+class SubjectMeta(Base):
+    """Admin-editable display metadata for one subject."""
+
+    __tablename__ = "subject_meta"
+    __table_args__ = (
+        UniqueConstraint("year", "semester", "subject_id", name="uq_subject_meta"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    year = Column(String, nullable=False, index=True, default="prep")
+    semester = Column(String, nullable=False, index=True)
+    subject_id = Column(String, nullable=False, index=True)
+    name_ar = Column(String, nullable=True)   # Arabic display name
+
+
+class SubjectChapter(Base):
+    """Admin-defined chapter list for one subject."""
+
+    __tablename__ = "subject_chapters"
+    __table_args__ = (
+        UniqueConstraint("year", "semester", "subject_id", "chapter_key", name="uq_subject_chapter"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    year = Column(String, nullable=False, index=True, default="prep")
+    semester = Column(String, nullable=False, index=True)
+    subject_id = Column(String, nullable=False, index=True)
+    chapter_key = Column(String, nullable=False)
+    chapter_name = Column(String, nullable=False)
+    sort_order = Column(Integer, default=0)
+    chapter_number = Column(Integer, nullable=True)  # display number, may have gaps
+    page_start = Column(Integer, nullable=True)
+    page_end = Column(Integer, nullable=True)
+
+
+class Skin(Base):
+    """A character skin purchasable with XP."""
+
+    __tablename__ = "skins"
+
+    id = Column(Integer, primary_key=True)
+    name_ar = Column(String, nullable=False)
+    emoji = Column(String, nullable=False)     # displayed as avatar icon
+    bg_color = Column(String, nullable=False)  # hex color e.g. "#3B82F6"
+    price_xp = Column(Integer, default=0)      # 0 = free default
+    gender = Column(String, nullable=True)     # 'male' | 'female' | null = any
+    sort_order = Column(Integer, default=0)
+
+
+class UserSkin(Base):
+    """A skin the user owns (purchased or free)."""
+
+    __tablename__ = "user_skins"
+    __table_args__ = (UniqueConstraint("user_id", "skin_id", name="uq_user_skin"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, index=True)
+    skin_id = Column(Integer, ForeignKey("skins.id"), nullable=False)
+    purchased_at = Column(DateTime, default=_utcnow)
 
 
 class Notification(Base):

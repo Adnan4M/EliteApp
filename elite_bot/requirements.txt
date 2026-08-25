@@ -13,7 +13,7 @@ python-multipart
 email-validator
 
 # AI provider (modular; Gemini is the first implementation)
-google-genai
+google-generativeai
 
 # PDF rendering + search highlighting
 PyMuPDF>=1.28

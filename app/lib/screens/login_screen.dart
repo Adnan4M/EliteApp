@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final s = e.toString();
     if (s.contains('409')) return 'هذا البريد مسجّل بالفعل.';
     if (s.contains('401')) return 'البريد أو كلمة المرور غير صحيحة.';
-    return 'تعذّر الاتصال. تأكد من الشبكة وحاول مجدداً.';
+    return 'خطأ: $s';
   }
 
   @override
@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Icon(Icons.school_rounded, size: 72, color: scheme.primary),
                   const SizedBox(height: 12),
-                  Text('Elite',
+                  Text('X Word',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium),
                   Text('مساعدك الذكي للسنة التحضيرية',

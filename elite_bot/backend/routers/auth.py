@@ -27,15 +27,16 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     db.add(user)
     db.flush()
 
-    # Record the trial as first-semester access so the gate logic is uniform.
-    db.add(
-        SemesterAccess(
-            user_id=user.id,
-            semester="first",
-            source="trial",
-            expires_at=user.trial_end,
+    # Grant both semesters during the trial so new users see everything.
+    for sem in ("first", "second"):
+        db.add(
+            SemesterAccess(
+                user_id=user.id,
+                semester=sem,
+                source="trial",
+                expires_at=user.trial_end,
+            )
         )
-    )
     db.commit()
     return TokenOut(access_token=create_token(user.id))
 
