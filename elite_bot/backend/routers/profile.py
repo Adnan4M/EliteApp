@@ -16,27 +16,21 @@ from backend.content import (
     year_label,
 )
 from backend.deps import current_user, get_db, has_semester_access
-from backend.models import AppProgress, AppUser, SemesterAccess, Skin, StudyPair, UserXp
+from backend.models import AppProgress, AppUser, ChapterCompletion, SemesterAccess, Skin, StudyPair, SubjectChapter, UserXp
 from backend.schemas import ProfileOut, ProgressIn, RankOut, SkinOut, SubjectProgress, YearOut
 
 router = APIRouter(tags=["profile"])
 
 
 def _subject_percent(db: Session, user_id: int, year: str, semester: str, subject_id: str) -> float:
-    """Average chapter percentage for one subject (0 when nothing recorded)."""
-    rows = (
-        db.query(AppProgress.percent)
-        .filter(
-            AppProgress.user_id == user_id,
-            AppProgress.year == year,
-            AppProgress.semester == semester,
-            AppProgress.subject_id == subject_id,
-        )
-        .all()
-    )
-    if not rows:
+    """Calculate subject completion from ChapterCompletion vs SubjectChapter counts."""
+    total = db.query(SubjectChapter).filter_by(semester=semester, subject_id=subject_id).count()
+    if total == 0:
         return 0.0
-    return round(sum(r[0] for r in rows) / len(rows), 1)
+    done = db.query(ChapterCompletion).filter_by(
+        user_id=user_id, semester=semester, subject_id=subject_id,
+    ).count()
+    return round(done / total * 100, 1)
 
 
 def _overall_percent(db: Session, user_id: int) -> float:
