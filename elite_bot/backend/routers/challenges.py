@@ -7,7 +7,7 @@ import logging
 import random
 import secrets
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
@@ -29,7 +29,7 @@ QUESTION_SECONDS = 30
 QUESTIONS_PER_GAME = 10
 XP_PER_WIN = 50
 XP_PER_CORRECT = 10
-LOBBY_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
+LOBBY_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 
 
 # ─── in-memory game state ────────────────────────────────────────────────────
@@ -48,6 +48,9 @@ class _Room:
         self.current_q = -1
         self.status = "lobby"
         self._timer: asyncio.Task | None = None
+        self.created_at = datetime.now(timezone.utc)
+        self.expires_at = self.created_at + timedelta(seconds=LOBBY_TIMEOUT_SECONDS)
+        self._lobby_timer: asyncio.Task | None = None
 
     async def broadcast(self, msg: dict[str, Any]) -> None:
         dead = []
@@ -60,9 +63,11 @@ class _Room:
             self.connections.pop(uid, None)
 
     def lobby_snapshot(self) -> dict[str, Any]:
+        remaining = max(0, int((self.expires_at - datetime.now(timezone.utc)).total_seconds()))
         return {
             "type": "lobby",
             "challenge_id": self.challenge_id,
+            "remaining_seconds": remaining,
             "players": [
                 {
                     "user_id": uid,
@@ -74,6 +79,16 @@ class _Room:
                 for uid in self.connections
             ],
         }
+
+    async def start_lobby_timer(self) -> None:
+        remaining = (self.expires_at - datetime.now(timezone.utc)).total_seconds()
+        if remaining <= 0:
+            return
+        await asyncio.sleep(remaining)
+        if self.status == "lobby":
+            self.status = "expired"
+            await self.broadcast({"type": "expired"})
+            _rooms.pop(self.challenge_id, None)
 
     async def start_game(self) -> None:
         if not self.questions:
@@ -682,6 +697,8 @@ async def challenge_ws(
 
     await websocket.accept()
     room = _get_or_create_room(challenge_id, host_id)
+    if room._lobby_timer is None and room.status == "lobby":
+        room._lobby_timer = asyncio.create_task(room.start_lobby_timer())
     room.connections[user_id] = websocket
     room.names[user_id] = user.name or user.email
     room.genders[user_id] = user.gender

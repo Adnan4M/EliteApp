@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,8 +36,10 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
   bool _connecting = true;
   StreamSubscription? _sub;
   Timer? _pingTimer;
+  Timer? _countdownTimer;
   String? _inviteCode;
   bool _handedOff = false;
+  int _remainingSeconds = 600;
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
   @override
   void dispose() {
     _pingTimer?.cancel();
+    _countdownTimer?.cancel();
     if (!_handedOff) {
       _sub?.cancel();
       _ws?.sink.close();
@@ -88,11 +92,22 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
     final msg = jsonDecode(raw as String) as Map<String, dynamic>;
     final type = msg['type'] as String?;
     if (type == 'lobby') {
+      final remaining = msg['remaining_seconds'] as int? ?? 600;
       setState(() {
         _connecting = false;
+        _remainingSeconds = remaining;
         _players = (msg['players'] as List)
             .map((e) => e as Map<String, dynamic>)
             .toList();
+      });
+      _countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {
+          _remainingSeconds = (_remainingSeconds - 1).clamp(0, 9999);
+        });
+        if (_remainingSeconds <= 0) {
+          _countdownTimer?.cancel();
+        }
       });
     } else if (type == 'start') {
       _handedOff = true;
@@ -223,6 +238,40 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _remainingSeconds <= 60
+                            ? scheme.error.withOpacity(0.15)
+                            : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer_outlined,
+                              size: 20,
+                              color: _remainingSeconds <= 60
+                                  ? scheme.error
+                                  : scheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(_remainingSeconds ~/ 60).toString().padLeft(2, '0')}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                              color: _remainingSeconds <= 60
+                                  ? scheme.error
+                                  : scheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     'اللاعبون (${_players.length})',
                     style: Theme.of(context).textTheme.titleMedium,
