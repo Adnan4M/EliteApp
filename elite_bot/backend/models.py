@@ -49,6 +49,10 @@ class AppUser(Base):
     last_login = Column(DateTime, nullable=True)
     gender = Column(String, nullable=True)          # 'male' | 'female'
     active_skin_id = Column(Integer, nullable=True)
+    phone = Column(String, nullable=True, index=True)
+    email_verified = Column(Boolean, default=False)
+    verify_code = Column(String, nullable=True)
+    verify_code_expires = Column(DateTime, nullable=True)
 
     # Free trial applies to the FIRST semester only.
     trial_end = Column(DateTime, nullable=True)

@@ -45,6 +45,8 @@ class Settings:
     app_jwt_secret: str
     app_admin_key: str
     support_telegram: str
+    smtp_email: str
+    smtp_password: str
 
     # Directories (created on demand by :meth:`ensure_dirs`)
     pdf_dir: Path = field(default=BASE_DIR)
@@ -74,6 +76,8 @@ class Settings:
             app_jwt_secret=_get("APP_JWT_SECRET", "dev-only-insecure-change-me"),
             app_admin_key=_get("APP_ADMIN_KEY"),
             support_telegram=_get("SUPPORT_TELEGRAM", "https://t.me/Ahmed4bi"),
+            smtp_email=_get("SMTP_EMAIL"),
+            smtp_password=_get("SMTP_PASSWORD"),
         )
 
     def ensure_dirs(self) -> None:

@@ -118,8 +118,9 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> register(String email, String password, {String? name}) async {
-    await _persist(await api.register(email, password, name: name));
+  Future<void> register(String email, String password,
+      {String? name, String? phone}) async {
+    await _persist(await api.register(email, password, name: name, phone: phone));
   }
 
   Future<void> login(String email, String password) async {

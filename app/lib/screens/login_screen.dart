@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_controller.dart';
+import 'verify_screen.dart';
 
 /// Combined sign-in / register screen (email + password).
 class LoginScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _name = TextEditingController();
+  final _phone = TextEditingController();
 
   bool _isRegister = false;
   bool _busy = false;
@@ -26,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _email.dispose();
     _password.dispose();
     _name.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
@@ -38,14 +41,38 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthController>();
     try {
       if (_isRegister) {
-        await auth.register(_email.text.trim(), _password.text,
-            name: _name.text.trim());
+        await auth.register(
+          _email.text.trim(),
+          _password.text,
+          name: _name.text.trim(),
+          phone: _phone.text.trim(),
+        );
+        // After registration, go to verification screen
+        if (mounted) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => VerifyScreen(
+              email: _email.text.trim(),
+              password: _password.text,
+            ),
+          ));
+        }
       } else {
         await auth.login(_email.text.trim(), _password.text);
       }
-      // On success the root widget swaps to HomeShell automatically.
     } catch (e) {
-      setState(() => _error = _friendly(e));
+      final msg = _friendly(e);
+      if (msg == '_NEEDS_VERIFY') {
+        if (mounted) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => VerifyScreen(
+              email: _email.text.trim(),
+              password: _password.text,
+            ),
+          ));
+        }
+      } else {
+        setState(() => _error = msg);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -53,8 +80,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _friendly(Object e) {
     final s = e.toString();
+    if (s.contains('EMAIL_NOT_VERIFIED')) return '_NEEDS_VERIFY';
+    if (s.contains('409') && s.contains('هاتف')) return 'رقم الهاتف مسجّل بالفعل.';
     if (s.contains('409')) return 'هذا البريد مسجّل بالفعل.';
     if (s.contains('401')) return 'البريد أو كلمة المرور غير صحيحة.';
+    if (s.contains('422') && s.contains('Gmail')) {
+      return 'يُسمح فقط بالبريد من Gmail أو Outlook أو Hotmail';
+    }
+    if (s.contains('502')) return 'فشل إرسال رمز التحقق. حاول مرة أخرى.';
     return 'خطأ: $s';
   }
 
@@ -81,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 32),
-                  if (_isRegister)
+                  if (_isRegister) ...[
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: TextFormField(
@@ -92,6 +125,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextFormField(
+                        controller: _phone,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم الهاتف',
+                          prefixIcon: Icon(Icons.phone_outlined),
+                          hintText: '09XXXXXXXX',
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'أدخل رقم الهاتف';
+                          }
+                          final digits = v.trim().replaceAll(RegExp(r'[^0-9+]'), '');
+                          if (digits.length < 9) return 'رقم هاتف غير صحيح';
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
                   TextFormField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
@@ -99,9 +153,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       labelText: 'البريد الإلكتروني',
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
-                    validator: (v) => (v == null || !v.contains('@'))
-                        ? 'أدخل بريداً صحيحاً'
-                        : null,
+                    validator: (v) {
+                      if (v == null || !v.contains('@')) return 'أدخل بريداً صحيحاً';
+                      final domain = v.trim().split('@').last.toLowerCase();
+                      if (!['gmail.com', 'outlook.com', 'hotmail.com']
+                          .contains(domain)) {
+                        return 'يُسمح فقط بـ Gmail أو Outlook أو Hotmail';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

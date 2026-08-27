@@ -8,13 +8,24 @@ class Api {
   Api(this.client);
 
   // -- auth ---------------------------------------------------------------
-  Future<String> register(String email, String password, {String? name}) async {
+  Future<String> register(String email, String password,
+      {String? name, String? phone}) async {
     final j = await client.post('/auth/register', body: {
       'email': email,
       'password': password,
       if (name != null && name.isNotEmpty) 'name': name,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
     });
     return j['access_token'] as String;
+  }
+
+  Future<void> verifyEmail(String email, String code) async {
+    await client.post('/auth/verify', body: {'email': email, 'code': code});
+  }
+
+  Future<void> resendCode(String email, String password) async {
+    await client.post('/auth/resend-code',
+        body: {'email': email, 'password': password});
   }
 
   Future<String> login(String email, String password) async {

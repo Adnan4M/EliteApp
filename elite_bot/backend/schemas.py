@@ -10,6 +10,12 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
     name: str | None = Field(default=None, max_length=80)
+    phone: str | None = Field(default=None, max_length=20)
+
+
+class VerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
 
 
 class LoginIn(BaseModel):
