@@ -206,65 +206,70 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
                     color: scheme.onPrimaryContainer)),
           ),
 
-          // ── Options grid ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Column(children: [
-              Row(children: [
-                _OptionCard(
-                  label: _optionLabels[0],
-                  text: options[0],
-                  color: _cardColor(0, _optionColors[0]),
-                  selected: _myAnswer == 0,
-                  correct: _correctIndex == 0 && _revealing,
-                  onTap: () => _answer(0),
-                ),
-                const SizedBox(width: 8),
-                _OptionCard(
-                  label: _optionLabels[1],
-                  text: options[1],
-                  color: _cardColor(1, _optionColors[1]),
-                  selected: _myAnswer == 1,
-                  correct: _correctIndex == 1 && _revealing,
-                  onTap: () => _answer(1),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                _OptionCard(
-                  label: _optionLabels[2],
-                  text: options[2],
-                  color: _cardColor(2, _optionColors[2]),
-                  selected: _myAnswer == 2,
-                  correct: _correctIndex == 2 && _revealing,
-                  onTap: () => _answer(2),
-                ),
-                const SizedBox(width: 8),
-                _OptionCard(
-                  label: _optionLabels[3],
-                  text: options.length > 3 ? options[3] : '',
-                  color: _cardColor(3, _optionColors[3]),
-                  selected: _myAnswer == 3,
-                  correct: _correctIndex == 3 && _revealing,
-                  onTap: () => _answer(3),
-                ),
-              ]),
-            ]),
+          // ── Options ──
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _revealing
+                  ? _RevealPanel(
+                      myAnswer: _myAnswer,
+                      correctIndex: _correctIndex,
+                      roundScores: _roundScores,
+                      leaderboard: _leaderboard,
+                      myUserId: _myUserId,
+                      options: options,
+                      optionColors: _optionColors,
+                      optionLabels: _optionLabels,
+                      cardColor: _cardColor,
+                      onAnswer: _answer,
+                    )
+                  : Column(children: [
+                      Expanded(
+                        child: Row(children: [
+                          _OptionCard(
+                            label: _optionLabels[0],
+                            text: options[0],
+                            color: _cardColor(0, _optionColors[0]),
+                            selected: _myAnswer == 0,
+                            correct: false,
+                            onTap: () => _answer(0),
+                          ),
+                          const SizedBox(width: 8),
+                          _OptionCard(
+                            label: _optionLabels[1],
+                            text: options[1],
+                            color: _cardColor(1, _optionColors[1]),
+                            selected: _myAnswer == 1,
+                            correct: false,
+                            onTap: () => _answer(1),
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Row(children: [
+                          _OptionCard(
+                            label: _optionLabels[2],
+                            text: options[2],
+                            color: _cardColor(2, _optionColors[2]),
+                            selected: _myAnswer == 2,
+                            correct: false,
+                            onTap: () => _answer(2),
+                          ),
+                          const SizedBox(width: 8),
+                          _OptionCard(
+                            label: _optionLabels[3],
+                            text: options.length > 3 ? options[3] : '',
+                            color: _cardColor(3, _optionColors[3]),
+                            selected: _myAnswer == 3,
+                            correct: false,
+                            onTap: () => _answer(3),
+                          ),
+                        ]),
+                      ),
+                    ]),
+            ),
           ),
-
-          const SizedBox(height: 8),
-
-          // ── Reveal: my result + leaderboard ──
-          if (_revealing)
-            Expanded(child: _RevealPanel(
-              myAnswer: _myAnswer,
-              correctIndex: _correctIndex,
-              roundScores: _roundScores,
-              leaderboard: _leaderboard,
-              myUserId: _myUserId,
-            ))
-          else
-            const Spacer(),
         ]),
       ),
     );
@@ -304,24 +309,22 @@ class _OptionCard extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          constraints: const BoxConstraints(minHeight: 60, maxHeight: 100),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(12),
             border: selected ? Border.all(color: Colors.white, width: 3) : null,
           ),
           child: Stack(children: [
-            Center(child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text('$label. $text',
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-            )),
+            Center(child: Text('$label. $text',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: text.length > 80 ? 10 : text.length > 40 ? 12 : 14)),
+            ),
             if (correct)
-              const Positioned(top: 6, left: 6,
+              const Positioned(top: 0, left: 0,
                   child: Icon(Icons.check_circle, color: Colors.white, size: 16)),
           ]),
         ),
@@ -338,12 +341,22 @@ class _RevealPanel extends StatelessWidget {
   final Map<String, int> roundScores;
   final List<Map<String, dynamic>> leaderboard;
   final int? myUserId;
+  final List<String> options;
+  final List<Color> optionColors;
+  final List<String> optionLabels;
+  final Color Function(int, Color) cardColor;
+  final void Function(int) onAnswer;
 
   const _RevealPanel({
     required this.myAnswer,
     required this.correctIndex,
     required this.roundScores,
     required this.leaderboard,
+    required this.options,
+    required this.optionColors,
+    required this.optionLabels,
+    required this.cardColor,
+    required this.onAnswer,
     this.myUserId,
   });
 
@@ -353,60 +366,80 @@ class _RevealPanel extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final myScore = myUserId != null ? (roundScores[myUserId.toString()] ?? 0) : 0;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
+    return Column(children: [
+      // Options grid (revealed state)
+      SizedBox(
+        height: 80,
+        child: Column(children: [
+          Expanded(child: Row(children: [
+            _OptionCard(label: optionLabels[0], text: options[0], color: cardColor(0, optionColors[0]), selected: myAnswer == 0, correct: correctIndex == 0, onTap: () {}),
+            const SizedBox(width: 8),
+            _OptionCard(label: optionLabels[1], text: options[1], color: cardColor(1, optionColors[1]), selected: myAnswer == 1, correct: correctIndex == 1, onTap: () {}),
+          ])),
+          const SizedBox(height: 4),
+          Expanded(child: Row(children: [
+            _OptionCard(label: optionLabels[2], text: options[2], color: cardColor(2, optionColors[2]), selected: myAnswer == 2, correct: correctIndex == 2, onTap: () {}),
+            const SizedBox(width: 8),
+            _OptionCard(label: optionLabels[3], text: options.length > 3 ? options[3] : '', color: cardColor(3, optionColors[3]), selected: myAnswer == 3, correct: correctIndex == 3, onTap: () {}),
+          ])),
+        ]),
       ),
-      child: Column(children: [
-        // My result banner
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+      const SizedBox(height: 8),
+      // Result + leaderboard
+      Expanded(
+        child: Container(
           decoration: BoxDecoration(
-            color: correct ? Colors.green : Colors.red.shade600,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Text(
-            correct ? '+$myScore نقطة! إجابة صحيحة ✓' : 'إجابة خاطئة ✗',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-          ),
+          child: Column(children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: correct ? Colors.green : Colors.red.shade600,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Text(
+                correct ? '+$myScore نقطة! إجابة صحيحة ✓' : 'إجابة خاطئة ✗',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(6),
+                itemCount: leaderboard.length,
+                itemBuilder: (_, i) {
+                  final p = leaderboard[i];
+                  final medal = i == 0 ? '🥇' : i == 1 ? '🥈' : i == 2 ? '🥉' : '${i + 1}.';
+                  final skinData = p['skin'] as Map<String, dynamic>?;
+                  final skin = skinData != null ? SkinInfo.fromJson(skinData) : null;
+                  final gender = p['gender'] as String?;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(children: [
+                      SizedBox(width: 24, child: Text(medal, style: const TextStyle(fontSize: 14))),
+                      CharacterWidget(skin: skin, gender: gender, size: 28),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(p['name'] as String,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                      Text('${p['score']}',
+                          style: TextStyle(color: scheme.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ]),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('السؤال التالي خلال لحظات...',
+                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
+            ),
+          ]),
         ),
-        // Ranking
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: leaderboard.length,
-            itemBuilder: (_, i) {
-              final p = leaderboard[i];
-              final medal = i == 0 ? '🥇' : i == 1 ? '🥈' : i == 2 ? '🥉' : '${i + 1}.';
-              final skinData = p['skin'] as Map<String, dynamic>?;
-              final skin = skinData != null ? SkinInfo.fromJson(skinData) : null;
-              final gender = p['gender'] as String?;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(children: [
-                  SizedBox(width: 28, child: Text(medal, style: const TextStyle(fontSize: 15))),
-                  CharacterWidget(skin: skin, gender: gender, size: 32),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(p['name'] as String,
-                      style: const TextStyle(fontWeight: FontWeight.bold))),
-                  Text('${p['score']} نقطة',
-                      style: TextStyle(color: scheme.primary, fontWeight: FontWeight.bold)),
-                ]),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text('السؤال التالي خلال لحظات...',
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-        ),
-      ]),
-    );
+      ),
+    ]);
   }
 }
 

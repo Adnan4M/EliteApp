@@ -1,5 +1,4 @@
-# Core bot
-python-telegram-bot==22.6
+# Core
 python-dotenv
 SQLAlchemy>=2.0
 PyYAML

@@ -1,0 +1,19 @@
+# App backend (FastAPI) — server-only deps, no bot/ML
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+bcrypt
+python-multipart
+email-validator
+python-dotenv
+SQLAlchemy>=2.0
+
+# AI provider
+google-generativeai
+
+# PDF rendering + search highlighting
+PyMuPDF>=1.28
+Pillow
+
+# Needed at runtime for keyword search only (no ML embeddings on server)
+numpy

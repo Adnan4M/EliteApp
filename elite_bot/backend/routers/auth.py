@@ -63,8 +63,8 @@ def _send_verification_email(to_email: str, code: str) -> None:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "فشل إرسال رمز التحقق") from exc
 
 
-@router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register(body: RegisterIn, db: Session = Depends(get_db)) -> dict[str, str]:
     email = body.email.lower().strip()
 
     # Restrict to allowed domains
@@ -75,22 +75,32 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
             "يُسمح فقط بالبريد من Gmail أو Outlook أو Hotmail",
         )
 
+    # Password rules: min 8 chars, at least one letter and one digit
+    pwd = body.password
+    if len(pwd) < 8:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "PWD_MIN_8")
+    if not any(c.isalpha() for c in pwd):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "PWD_NEED_LETTER")
+    if not any(c.isdigit() for c in pwd):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "PWD_NEED_DIGIT")
+
     if db.query(AppUser).filter(AppUser.email == email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
 
-    # Check phone uniqueness if provided
+    # Phone is required and must be unique
     phone = (body.phone or "").strip()
-    if phone:
-        existing_phone = db.query(AppUser).filter(AppUser.phone == phone).first()
-        if existing_phone:
-            raise HTTPException(status.HTTP_409_CONFLICT, "رقم الهاتف مسجّل بالفعل")
+    if not phone:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "رقم الهاتف مطلوب")
+    existing_phone = db.query(AppUser).filter(AppUser.phone == phone).first()
+    if existing_phone:
+        raise HTTPException(status.HTTP_409_CONFLICT, "رقم الهاتف مسجّل بالفعل")
 
     code = _generate_code()
     user = AppUser(
         email=email,
-        password_hash=hash_password(body.password),
+        password_hash=hash_password(pwd),
         name=body.name,
-        phone=phone or None,
+        phone=phone,
         email_verified=False,
         verify_code=code,
         verify_code_expires=datetime.datetime.now(datetime.timezone.utc)
@@ -114,17 +124,17 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
 
     _send_verification_email(email, code)
 
-    return TokenOut(access_token=create_token(user.id))
+    return {"status": "verify_email"}
 
 
-@router.post("/verify")
-def verify_email(body: VerifyIn, db: Session = Depends(get_db)) -> dict[str, str]:
+@router.post("/verify", response_model=TokenOut)
+def verify_email(body: VerifyIn, db: Session = Depends(get_db)) -> TokenOut:
     email = body.email.lower().strip()
     user = db.query(AppUser).filter(AppUser.email == email).first()
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "المستخدم غير موجود")
     if user.email_verified:
-        return {"status": "already_verified"}
+        return TokenOut(access_token=create_token(user.id))
     if user.verify_code != body.code:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "الرمز غير صحيح")
     if user.verify_code_expires and user.verify_code_expires < datetime.datetime.now(
@@ -136,7 +146,7 @@ def verify_email(body: VerifyIn, db: Session = Depends(get_db)) -> dict[str, str
     user.verify_code = None
     user.verify_code_expires = None
     db.commit()
-    return {"status": "verified"}
+    return TokenOut(access_token=create_token(user.id))
 
 
 @router.post("/resend-code")

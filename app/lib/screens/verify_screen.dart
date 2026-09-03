@@ -35,9 +35,8 @@ class _VerifyScreenState extends State<VerifyScreen> {
     setState(() { _busy = true; _error = null; });
     try {
       final auth = context.read<AuthController>();
-      await auth.api.verifyEmail(widget.email, code);
-      // Now log in
-      await auth.login(widget.email, widget.password);
+      final token = await auth.api.verifyEmail(widget.email, code);
+      await auth.loginWithToken(token);
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       setState(() => _error = _friendly(e));

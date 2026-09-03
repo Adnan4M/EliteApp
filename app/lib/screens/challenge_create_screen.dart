@@ -87,25 +87,27 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('تحدٍّ جديد')),
-      body: Column(
+      body: SafeArea(
+        top: false,
+        child: Column(
         children: [
           // ── Privacy toggle (open challenges only) ──
           if (widget.type == 'open')
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
-                const Icon(Icons.lock_outline, size: 20),
+                Icon(_isPrivate ? Icons.lock : Icons.lock_open, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_isPrivate ? 'غرفة خاصة' : 'غرفة عامة',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Text('غرفة خاصة',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       Text(
                         _isPrivate
-                            ? 'مرئية فقط لمن يملك كود الدعوة'
-                            : 'تظهر في قائمة التحديات المفتوحة',
+                            ? 'الدخول فقط بكود الدعوة'
+                            : 'الغرفة مفتوحة للجميع',
                         style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
@@ -287,6 +289,7 @@ class _ChallengeCreateScreenState extends State<ChallengeCreateScreen> {
             ),
           ],
         ],
+      ),
       ),
     );
   }

@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
   final _name = TextEditingController();
   final _phone = TextEditingController();
 
@@ -27,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     _name.dispose();
     _phone.dispose();
     super.dispose();
@@ -47,7 +49,6 @@ class _LoginScreenState extends State<LoginScreen> {
           name: _name.text.trim(),
           phone: _phone.text.trim(),
         );
-        // After registration, go to verification screen
         if (mounted) {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => VerifyScreen(
@@ -56,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ));
         }
+        return;
       } else {
         await auth.login(_email.text.trim(), _password.text);
       }
@@ -88,6 +90,10 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'يُسمح فقط بالبريد من Gmail أو Outlook أو Hotmail';
     }
     if (s.contains('502')) return 'فشل إرسال رمز التحقق. حاول مرة أخرى.';
+    if (s.contains('PWD_MIN_8')) return 'كلمة المرور 8 أحرف على الأقل';
+    if (s.contains('PWD_NEED_LETTER')) return 'كلمة المرور يجب أن تحتوي على حرف';
+    if (s.contains('PWD_NEED_DIGIT')) return 'كلمة المرور يجب أن تحتوي على رقم';
+    if (s.contains('هاتف') && s.contains('مطلوب')) return 'رقم الهاتف مطلوب';
     return 'خطأ: $s';
   }
 
@@ -171,10 +177,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       labelText: 'كلمة المرور',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'كلمة المرور 6 أحرف على الأقل'
-                        : null,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'أدخل كلمة المرور';
+                      if (_isRegister) {
+                        if (v.length < 8) return 'كلمة المرور 8 أحرف على الأقل';
+                        if (!v.contains(RegExp(r'[a-zA-Z]'))) return 'يجب أن تحتوي على حرف واحد على الأقل';
+                        if (!v.contains(RegExp(r'[0-9]'))) return 'يجب أن تحتوي على رقم واحد على الأقل';
+                      }
+                      return null;
+                    },
                   ),
+                  if (_isRegister) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPassword,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'تأكيد كلمة المرور',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                      validator: (v) {
+                        if (v != _password.text) return 'كلمتا المرور غير متطابقتين';
+                        return null;
+                      },
+                    ),
+                  ],
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!,

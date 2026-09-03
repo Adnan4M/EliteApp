@@ -195,7 +195,9 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
       ),
       body: _connecting
           ? const Loading()
-          : Padding(
+          : SafeArea(
+              top: false,
+              child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -321,6 +323,7 @@ class _ChallengeLobbyScreenState extends State<ChallengeLobbyScreen> {
                 ],
               ),
             ),
+          ),
     );
   }
 }
