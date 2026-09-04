@@ -18,7 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
   final _name = TextEditingController();
-  final _phone = TextEditingController();
 
   bool _isRegister = false;
   bool _busy = false;
@@ -30,7 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _password.dispose();
     _confirmPassword.dispose();
     _name.dispose();
-    _phone.dispose();
     super.dispose();
   }
 
@@ -47,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
           _email.text.trim(),
           _password.text,
           name: _name.text.trim(),
-          phone: _phone.text.trim(),
         );
         if (mounted) {
           Navigator.of(context).push(MaterialPageRoute(
@@ -131,26 +128,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: TextFormField(
-                        controller: _phone,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'رقم الهاتف',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                          hintText: '09XXXXXXXX',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'أدخل رقم الهاتف';
-                          }
-                          final digits = v.trim().replaceAll(RegExp(r'[^0-9+]'), '');
-                          if (digits.length < 9) return 'رقم هاتف غير صحيح';
-                          return null;
-                        },
-                      ),
-                    ),
                   ],
                   TextFormField(
                     controller: _email,
@@ -227,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             }),
                     child: Text(_isRegister
                         ? 'لديك حساب؟ سجّل الدخول'
-                        : 'ليس لديك حساب؟ أنشئ واحداً (تجربة 7 أيام)'),
+                        : 'ليس لديك حساب؟ أنشئ واحداً'),
                   ),
                 ],
               ),

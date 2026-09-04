@@ -56,6 +56,7 @@ class Settings:
 
     render_dpi: int = 300
     trial_days: int = 7
+    term_end: str = "2027-06-30"
 
     @classmethod
     def load(cls) -> "Settings":

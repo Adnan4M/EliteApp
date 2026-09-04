@@ -87,37 +87,32 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> dict[str, str]:
     if db.query(AppUser).filter(AppUser.email == email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
 
-    # Phone is required and must be unique
-    phone = (body.phone or "").strip()
-    if not phone:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "رقم الهاتف مطلوب")
-    existing_phone = db.query(AppUser).filter(AppUser.phone == phone).first()
-    if existing_phone:
-        raise HTTPException(status.HTTP_409_CONFLICT, "رقم الهاتف مسجّل بالفعل")
+    term_end = datetime.datetime.strptime(settings.term_end, "%Y-%m-%d").replace(
+        tzinfo=datetime.timezone.utc
+    )
 
     code = _generate_code()
     user = AppUser(
         email=email,
         password_hash=hash_password(pwd),
         name=body.name,
-        phone=phone,
         email_verified=False,
         verify_code=code,
         verify_code_expires=datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(minutes=10),
     )
-    user.start_trial(settings.trial_days)
+    user.trial_end = term_end
     db.add(user)
     db.flush()
 
-    # Grant both semesters during the trial so new users see everything.
+    # Grant both semesters until the term ends.
     for sem in ("first", "second"):
         db.add(
             SemesterAccess(
                 user_id=user.id,
                 semester=sem,
-                source="trial",
-                expires_at=user.trial_end,
+                source="term",
+                expires_at=term_end,
             )
         )
     db.commit()
